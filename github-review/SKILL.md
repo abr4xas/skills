@@ -1,13 +1,15 @@
 ---
 name: github-review
 description: Reply to GitHub PR and issue comments, and resolve review threads, from the terminal via the gh CLI. Use when addressing code-review feedback or replying to reviewers like coderabbitai on a pull request or issue.
+metadata:
+  version: "0.1.1"
 ---
 
 # github-review
 
-Comment on GitHub PRs and issues via a driver, so you don't have to remember the right API endpoints.
+Comment on GitHub PRs and issues via a driver.
 
-The driver is `driver.sh`, **in the same directory as this `SKILL.md`**. Do not assume a path like `.claude/skills/...`: every agent installs the skill into its own folder. Use the `driver.sh` next to this file.
+The driver is `driver.sh`, **in the same directory as this `SKILL.md`**. Every agent installs the skill into its own folder, so resolve the driver's path relative to this file.
 
 ## The repo is auto-detected
 
@@ -22,10 +24,10 @@ Prerequisite: `gh` CLI authenticated (`gh auth status`).
 
 ## Commands
 
-Set `DRIVER` to this skill's `driver.sh`, then run from the target repo:
+Set `DRIVER` to the absolute path of this skill's `driver.sh` (CWD stays on the target repo, so a relative `./driver.sh` won't resolve):
 
 ```bash
-DRIVER="./driver.sh"   # adjust to the real path of this skill's driver.sh
+DRIVER="/absolute/path/to/this/skill/driver.sh"   # this skill's driver.sh; run with CWD = target repo
 
 bash $DRIVER repo                                      # show the detected repo
 bash $DRIVER reply-review  <pr> <comment_id> "<body>"  # reply to an inline review comment (most common)
@@ -41,7 +43,7 @@ bash $DRIVER get-comment   <comment_id>                # show one review comment
 ## Typical flow: reply to a reviewer's comments on a PR
 
 ```bash
-DRIVER="./driver.sh"
+DRIVER="/absolute/path/to/this/skill/driver.sh"
 PR=5663
 
 # 1. Get the IDs of the reviewer's comments
