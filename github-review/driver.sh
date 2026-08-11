@@ -9,6 +9,8 @@ set -euo pipefail
 
 die() { echo "error: $*" >&2; exit 1; }
 
+need_jq() { command -v jq >/dev/null || die "'jq' is required for '$CMD'. Install it: brew install jq / apt-get install jq"; }
+
 resolve_repo() {
   if [[ -n "${GITHUB_REPO:-}" ]]; then
     echo "$GITHUB_REPO"
@@ -90,8 +92,12 @@ case "$CMD" in
 
   list-review)
     PR="${1:-}"; need "$PR"
-    gh api "repos/$REPO/pulls/$PR/comments" --paginate \
-      --jq '[.[] | {id, path, line, user: .user.login, snippet: .body[:80]}]'
+    need_jq
+    # --slurp collapses all pages into one array, so the output stays a single valid
+    # JSON document. gh refuses --slurp together with --jq, hence the external jq:
+    # with --paginate --jq, gh emits one array PER PAGE and downstream parsing breaks.
+    gh api "repos/$REPO/pulls/$PR/comments?per_page=100" --paginate --slurp \
+      | jq '[.[][] | {id, path, line, user: .user.login, snippet: (.body // "")[:80]}]'
     ;;
 
   list-threads)
