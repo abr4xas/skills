@@ -9,9 +9,10 @@ It handles both shapes of stack: merging the parent down into each child, and a
 cascading rebase (`gh stack rebase`, or GitHub's native stacks) paused on a
 conflict — where `--ours` means the *opposite* of what it means in a merge.
 
-The driver is pure git, so it works on any repo in any language. What "still
-valid" means for your project — the syntax check, the type check, the formatter
-— stays where it belongs: the agent reads it off your repo.
+The driver is git and nothing else (bar `gh` for one command), so it works on
+any repo in any language. What "still valid" means for your project — the
+syntax check, the type check, the formatter — stays where it belongs: the agent
+reads it off your repo.
 
 ## Install
 
@@ -44,8 +45,8 @@ S=.claude/skills/resolve-stacked-conflicts/stack.sh
 
 bash $S chain 5827 -w                    # derive the chain from the PRs' base refs
 bash $S preflight                        # which edges conflict? (read-only)
-git checkout feature-base && git merge main
-bash $S sides src/services/user.ts       # who refactored, who edited?
+git checkout feature-base && git merge main   # or a paused `gh stack rebase`
+bash $S sides src/services/user.ts       # merge or rebase? who refactored, who edited?
 bash $S markers                          # anything left unresolved?
 bash $S touched                          # what to run the project's checks over
 ```
