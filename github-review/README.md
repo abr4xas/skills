@@ -14,12 +14,12 @@ Prerequisites: the [`gh` CLI](https://cli.github.com/) authenticated (`gh auth s
 
 ## First run
 
-The repo is auto-detected — `$GITHUB_REPO` if set (`owner/repo`), otherwise whatever `gh repo view` infers from the current directory's git remote. So **run the driver with your target repo as the working directory**:
+The repo is auto-detected — `$GITHUB_REPO` if set (`owner/repo`), otherwise whatever `gh repo view` infers from the current directory's git remote. So **run the driver with your target repo as the working directory**, and confirm the resolution before you post: a wrong CWD puts real comments on the wrong repository.
 
 ```bash
 DRIVER="/absolute/path/to/this/skill/driver.sh"   # CWD stays on the target repo
 
-bash $DRIVER repo                    # confirm which repo it resolved
+bash $DRIVER repo                    # confirm which repo it resolved — do this first
 bash $DRIVER list-review 5663        # the reviewer's comments, with their ids
 bash $DRIVER reply-review 5663 3482904436 "Fixed. Removed duplicate keys."
 ```
@@ -28,19 +28,9 @@ Need the PR number for the current branch: `gh pr view --json number -q .number`
 
 ## Commands
 
-```bash
-bash $DRIVER repo                                      # show the detected repo
-bash $DRIVER reply-review  <pr> <comment_id> "<body>"  # reply to an inline review comment (most common)
-bash $DRIVER comment-pr    <pr> "<body>"               # top-level PR comment
-bash $DRIVER comment-issue <issue> "<body>"            # comment on an issue
-bash $DRIVER resolve       <thread_id>                 # resolve a review thread
-bash $DRIVER unresolve     <thread_id>                 # reopen a review thread
-bash $DRIVER list-review   <pr>                        # list review comments (REST, paginated)
-bash $DRIVER list-threads  <pr>                        # list review threads (GraphQL)
-bash $DRIVER get-comment   <comment_id>                # show one review comment
-```
+Nine of them — replying, commenting, resolving, and two ways of listing. `bash $DRIVER` with no arguments prints them all; [SKILL.md](./SKILL.md) has each one with its argument shapes and quoting.
 
-The two list commands are **not** interchangeable: `list-review` gives you `id`/`path`/`line`/`user`/`snippet`, `list-threads` adds `threadId`/`isResolved`/`isOutdated`/`replies`. `list-review`'s `id` is `list-threads`'s `commentId` — that's how you join them.
+The two list commands are **not** interchangeable: `list-review` (REST) gives you `id`/`path`/`line`/`user`/`snippet`, `list-threads` (GraphQL) adds `threadId`/`isResolved`/`isOutdated`/`replies`. They are two views of the same PR, and you join them on `commentId`.
 
 ## Two things that will bite you
 
