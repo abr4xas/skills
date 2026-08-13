@@ -5,6 +5,10 @@ not one merge — it's a chain of them. Each branch targets the one above it, so
 the conflict gets resolved once at the base and then cascaded down, parent into
 child, one edge at a time. Start at the wrong edge and you redo the whole thing.
 
+It handles both shapes of stack: merging the parent down into each child, and a
+cascading rebase (`gh stack rebase`, or GitHub's native stacks) paused on a
+conflict — where `--ours` means the *opposite* of what it means in a merge.
+
 The driver is pure git, so it works on any repo in any language. What "still
 valid" means for your project — the syntax check, the type check, the formatter
 — stays where it belongs: the agent reads it off your repo.

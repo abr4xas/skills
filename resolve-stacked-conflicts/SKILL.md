@@ -1,6 +1,6 @@
 ---
 name: resolve-stacked-conflicts
-description: "Resolve merge conflicts across a stacked-PR chain, in any language. Use when GitHub says a stack has conflicts that must be resolved, when merging the trunk into a stacked branch, or when cascading a parent branch down through its children. Covers preflight conflict detection across the whole chain, per-file side attribution, and the audit that catches breakage git never marks."
+description: "Resolve merge conflicts across a stacked-PR chain, in any language. Use when GitHub says a stack has conflicts that must be resolved, when merging the trunk into a stacked branch, when a cascading rebase (gh stack rebase) stops on a conflict, or when cascading a parent branch down through its children. Covers preflight conflict detection across the whole chain, per-file side attribution, and the audit that catches breakage git never marks."
 metadata:
   version: "0.1.0"
 ---
@@ -9,7 +9,26 @@ metadata:
 
 A stack is a chain of branches where each PR targets the one above it, not the
 trunk. When the trunk moves, the conflict is resolved **once at the base** and
-then **cascaded down**, parent into child, one edge at a time.
+then **cascaded down**, parent into child, one edge at a time. Stacks
+[merge from the bottom up](https://docs.github.com/en/pull-requests/get-started/about-stacked-prs),
+and so do their conflicts.
+
+**Find out which kind of stack this is before you touch it.** A stack moves in
+one of two ways, and they need opposite resolutions:
+
+| | who moves | the other side is |
+|---|---|---|
+| **merge-down** — `git merge <parent>` into the child | the child gains a merge commit | what you merged in |
+| **cascading rebase** — `gh stack rebase`, or GitHub's server-side rebase | the child's commits are replayed | **your own commit** |
+
+GitHub's native stacks rebase. `gh stack view` prints the chain if the repo
+uses them (`gh extension install github/gh-stack`); when the bottom PR merges,
+GitHub rebases the rest and re-targets them at the trunk on its own — don't
+hand-cascade what the server is about to redo. Native stacks also require every
+branch in one repo: cross-fork stacks are unsupported.
+
+Either way the file looks the same, `sides` reports which operation is in
+flight, and everything below applies.
 
 The git work runs through one driver, next to this file:
 
@@ -17,7 +36,8 @@ The git work runs through one driver, next to this file:
 bash <skill-dir>/stack.sh <command>
 ```
 
-It is pure git — it knows nothing about the project's language. Deciding what
+Git only, apart from `chain` — it knows nothing about the project's language.
+Deciding what
 "still valid" means for this repo is your job, in step 4.
 
 ## 0. Get the chain
@@ -46,8 +66,10 @@ When one branch has two PRs stacked on it the stack is a tree, not a chain:
 `chain` lists the children, writes nothing and exits non-zero. Ask which one to
 follow.
 
-This is the only command that needs `gh`. Without it, write the branches into
-`stack.txt` by hand and continue.
+This is the only command that needs `gh`. On a GitHub-native stack,
+`gh stack view` is the authority and `chain` merely reconstructs the same thing
+from the base branches — use whichever answers. With no `gh` at all, write the
+branches into `stack.txt` by hand and continue.
 
 ## 1. Preflight — see the whole stack before touching anything
 
@@ -89,13 +111,17 @@ bash <skill-dir>/stack.sh edge 9b63989 0efdfee
 **Only the first dirty edge is real.** Resolving it rewrites the child, which
 changes every downstream result. Re-run `preflight` after each commit.
 
-## 2. Merge one edge
+## 2. Move one edge
 
 ```bash
 git checkout feature-base
 git merge main               # or: git merge <parent-branch>
 git diff --name-only --diff-filter=U
 ```
+
+On a rebasing stack, `gh stack rebase` replays the chain instead and stops at
+the first conflict, printing the conflicted files. Steps 3–5 are the same from
+there; you finish with `gh stack rebase --continue` rather than a commit.
 
 ## 3. Attribute each conflict before resolving it
 
@@ -104,10 +130,10 @@ bash <skill-dir>/stack.sh sides src/webhooks/handler.ts
 ```
 
 ```
-merge-base: 8340a6bb15
+merge in progress, merge-base: 8340a6bb15
 
-  OURS   (HEAD, your branch)  29+ 1367-
-  THEIRS (MERGE_HEAD)         45+ 1-
+  OURS   (HEAD, your branch)                     29+ 1367-
+  THEIRS (MERGE_HEAD, what you are merging in)   45+ 1-
 
 --- commits on THEIRS touching this file ---
   010ba17 add status page
@@ -140,9 +166,10 @@ bash <skill-dir>/stack.sh touched    # every file the merge changed, either side
 
 Run the project's syntax or type check and its linter over the **touched**
 list, not over the conflicted files. That distinction is the whole point of the
-step — see the first gotcha. Find the real commands in the repo rather than
-guessing: `package.json` scripts, `composer.json`, `Makefile`, `justfile`, the
-CI workflow. Whatever the PR is checked with is what you run now.
+step — see *A fatal git will never show you*. Find the real commands in the
+repo rather than guessing: `package.json` scripts, `composer.json`, `Makefile`,
+`justfile`, the CI workflow. Whatever the PR is checked with is what you run
+now.
 
 Then read the resolution itself, because no tool checks this: every hunk you
 resolved should still contain both sides' *intent*, and every change the other
@@ -160,12 +187,20 @@ production.
 ## 5. Format only what you touched
 
 Run the project's formatter with an **explicit file list** — the files you
-resolved, nothing else. Never the project-wide or `--dirty` form; see the
-second gotcha.
+resolved, nothing else. Never the project-wide or `--dirty` form; see
+*A project-wide format is unusable mid-merge*.
 
 Then commit, and go back to step 1 for the next edge.
 
 ## Gotchas
+
+**In a rebase, `--ours` is not yours.** Rebasing replays your commits onto the
+other branch, so git labels the *other* branch `ours` (it is what HEAD holds
+while replaying) and your own commit `theirs` — the exact inverse of a merge.
+Resolve a paused `gh stack rebase` with the merge-day reflex and `--ours` keeps
+the trunk while quietly dropping your work, with a clean-looking result. Run
+`sides` first: it names the operation in flight and labels the two sides
+accordingly.
 
 **A fatal git will never show you.** The worst trap in a stacked merge is
 breakage far from any marker. Two sides each add an import of the same name —
@@ -223,7 +258,8 @@ path in its own variable: `p=app/Foo.php; git cat-file -p "$TREE:$p"`.
 |---|---|
 | `error: unknown ref: <branch>` | Branch is remote-only and not fetched. `git fetch origin <branch>` |
 | `warn: local … != origin/… — using origin` | Local branch is stale. `git pull` it, or ignore — preflight already used origin |
-| `no merge in progress` from `sides` | `sides` reads `HEAD` vs `MERGE_HEAD`. Run it during the merge, before committing |
+| `no merge or rebase in progress` from `sides` | It reads `HEAD` vs `MERGE_HEAD`/`REBASE_HEAD`. Run it while the operation is paused, before finishing it |
+| A rebase resolution "worked" but your change is gone | You took `--ours`, which in a rebase is the other branch. Redo the commit with `--theirs` |
 | `touched` prints nothing after committing | It falls back to `HEAD^ HEAD`. Run it on the merge commit, or pass the branch pair to `edge` |
 | Audit clean, PR still shows conflicts | You resolved a downstream edge first. Restart from the topmost dirty edge |
 | Parse error on `<<` or `<<<<<<<` | A conflict marker is still in the file — `markers` lists which |

@@ -207,6 +207,30 @@ cmd_preflight() {
   return $dirty
 }
 
+# --- in-progress operation --------------------------------------------------
+# A stack moves two ways, and the conflict looks the same in the file while the
+# two sides mean opposite things:
+#
+#   merge   OURS = your branch (HEAD)        THEIRS = what you merged in
+#   rebase  OURS = what you replay ONTO      THEIRS = your own commit
+#
+# A cascading rebase — what `gh stack rebase` and GitHub's server-side rebase
+# run — stops mid-flight with no MERGE_HEAD at all. Resolve it as a merge and
+# you keep exactly the wrong side, so detect which one is running.
+OTHER_REF=""; OURS_LABEL=""; THEIRS_LABEL=""; OP=""
+detect_op() {
+  if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+    OP=merge; OTHER_REF=MERGE_HEAD
+    OURS_LABEL="OURS   (HEAD, your branch)"
+    THEIRS_LABEL="THEIRS (MERGE_HEAD, what you are merging in)"
+  elif git rev-parse -q --verify REBASE_HEAD >/dev/null 2>&1; then
+    OP=rebase; OTHER_REF=REBASE_HEAD
+    OURS_LABEL="OURS   (HEAD, the branch you are replaying onto)"
+    THEIRS_LABEL="THEIRS (REBASE_HEAD, your own commit)"
+  fi
+  [ -n "$OP" ]
+}
+
 # --- sides ------------------------------------------------------------------
 # For a conflicted file, show what each side actually did since the merge base.
 # This is the question that decides the resolution: if one side REFACTORED the
@@ -214,29 +238,28 @@ cmd_preflight() {
 # keep the refactor and port the small edit into the new structure.
 cmd_sides() {
   local file="${1:?usage: sides <file>}"
-  git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1 \
-    || die "no merge in progress (this reads HEAD vs MERGE_HEAD)"
+  detect_op || die "no merge or rebase in progress (this reads HEAD vs MERGE_HEAD/REBASE_HEAD)"
 
   local base
-  base="$(git merge-base HEAD MERGE_HEAD)"
-  printf '%smerge-base:%s %s\n\n' "$c_dim" "$c_off" "${base:0:10}"
+  base="$(git merge-base HEAD "$OTHER_REF")"
+  printf '%s%s in progress, merge-base:%s %s\n\n' "$c_dim" "$OP" "$c_off" "${base:0:10}"
 
   local o t
   o="$(git diff --numstat "$base" HEAD -- "$file" | awk '{print $1"+ "$2"-"}')"
-  t="$(git diff --numstat "$base" MERGE_HEAD -- "$file" | awk '{print $1"+ "$2"-"}')"
-  printf '  OURS   (HEAD, your branch)  %s\n' "${o:-unchanged}"
-  printf '  THEIRS (MERGE_HEAD)         %s\n\n' "${t:-unchanged}"
+  t="$(git diff --numstat "$base" "$OTHER_REF" -- "$file" | awk '{print $1"+ "$2"-"}')"
+  printf '  %-48s %s\n' "$OURS_LABEL" "${o:-unchanged}"
+  printf '  %-48s %s\n\n' "$THEIRS_LABEL" "${t:-unchanged}"
 
   printf '%s--- commits on THEIRS touching this file ---%s\n' "$c_dim" "$c_off"
-  git log --oneline "$base..MERGE_HEAD" -- "$file" | sed 's/^/  /'
+  git log --oneline "$base..$OTHER_REF" -- "$file" | sed 's/^/  /'
   printf '\n%s--- commits on OURS touching this file ---%s\n' "$c_dim" "$c_off"
   git log --oneline "$base..HEAD" -- "$file" | sed 's/^/  /'
 
   # A file that vanished on one side is usually a refactor, not a deletion.
   # Find where it went before you resolve it as "keep ours".
-  if ! git cat-file -e "MERGE_HEAD:$file" 2>/dev/null; then
+  if ! git cat-file -e "$OTHER_REF:$file" 2>/dev/null; then
     printf '\n%s! gone on THEIRS — likely refactored/moved. Candidates:%s\n' "$c_yel" "$c_off"
-    git log --diff-filter=R --name-status --oneline "$base..MERGE_HEAD" \
+    git log --diff-filter=R --name-status --oneline "$base..$OTHER_REF" \
       | grep -F "$(basename "$file")" | head -5 | sed 's/^/  /'
   fi
 }
@@ -247,12 +270,12 @@ cmd_sides() {
 # breakage git never marks lives in a file that merged without any conflict.
 cmd_touched() {
   local glob="${1:-}" base
-  if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
-    base="$(git merge-base HEAD MERGE_HEAD)"
+  if detect_op; then
+    base="$(git merge-base HEAD "$OTHER_REF")"
     { git diff --name-only "$base" HEAD ${glob:+-- "$glob"}
-      git diff --name-only "$base" MERGE_HEAD ${glob:+-- "$glob"}; }
+      git diff --name-only "$base" "$OTHER_REF" ${glob:+-- "$glob"}; }
   else
-    # Post-commit: inspect the merge commit at HEAD.
+    # Nothing in flight: inspect the commit at HEAD.
     git diff --name-only HEAD^ HEAD ${glob:+-- "$glob"} 2>/dev/null
   fi | sort -u | while IFS= read -r f; do [ -f "$f" ] && printf '%s\n' "$f"; done
 }
