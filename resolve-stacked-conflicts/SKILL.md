@@ -30,6 +30,13 @@ branch in one repo: cross-fork stacks are unsupported.
 Either way the file looks the same, `sides` reports which operation is in
 flight, and everything below applies.
 
+**You run every command here.** The user invokes this skill with a PR number
+and nothing else — `/resolve-stacked-conflicts 5827` — or with nothing at all,
+meaning the branch they are on. Take that as the starting point and work the
+whole chain; never hand a driver command back for them to type. What you do ask
+for is judgement: which child to follow at a fork, and how to resolve a
+conflict that encodes a product decision.
+
 The git work runs through one driver, next to this file:
 
 ```bash
@@ -37,18 +44,20 @@ bash <skill-dir>/stack.sh <command>
 ```
 
 Git only, apart from `chain` — it knows nothing about the project's language.
-Deciding what
-"still valid" means for this repo is your job, in step 4.
+Deciding what "still valid" means for this repo is your job, in step 4.
 
-## 0. Get the chain
+## 0. Rebuild the chain — every invocation, first thing
 
 Every command works off `stack.txt` next to the driver — trunk first, one
-branch per line. Don't ask the user to write it: a stacked PR already records
-its parent in its `base` branch, so ask only **which PR is stacked**, then
-derive the rest.
+branch per line. Never trust the one already there: it is left over from
+whatever stack ran last. `chain` overwrites it, so run it before anything else,
+with the PR the user gave you.
+
+A stacked PR already records its parent in its `base` branch, so the whole
+chain rebuilds itself from that one number — nobody edits the file by hand.
 
 ```bash
-bash <skill-dir>/stack.sh chain 5827 -w
+bash <skill-dir>/stack.sh chain 5827
 ```
 
 ```
@@ -60,16 +69,18 @@ feature-tip     #5845
 wrote 4 branches to …/stack.txt
 ```
 
-Any PR number or branch in the stack works — it walks up to the trunk and down
-through the children. With no argument it starts from the branch you are on.
+Pass whatever the user gave you — any PR number or branch in the stack works,
+since it walks up to the trunk and down through the children. With no argument
+it starts from the branch you are on.
+
 When one branch has two PRs stacked on it the stack is a tree, not a chain:
-`chain` lists the children, writes nothing and exits non-zero. Ask which one to
-follow.
+`chain` lists the children, writes nothing and exits non-zero. That is a
+question for the user — show them the children and ask which one to follow.
 
 This is the only command that needs `gh`. On a GitHub-native stack,
 `gh stack view` is the authority and `chain` merely reconstructs the same thing
-from the base branches — use whichever answers. With no `gh` at all, write the
-branches into `stack.txt` by hand and continue.
+from the base branches — use whichever answers. With no `gh` at all, ask the
+user for the branch names, write them into `stack.txt` yourself, and continue.
 
 ## 1. Preflight — see the whole stack before touching anything
 

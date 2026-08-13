@@ -7,7 +7,7 @@
 #   bash <skill-dir>/stack.sh <command> [args]
 #
 # Commands:
-#   chain [pr|branch] [-w]   Derive the branch chain from the PRs' base refs (needs `gh`); -w writes stack.txt
+#   chain [pr|branch]        Derive the branch chain from the PRs' base refs and write stack.txt (needs `gh`)
 #   preflight [stack-file]   Report conflicts for every edge of the stack, without touching the worktree
 #   edge <parent> <child>    Report conflicts for a single merge, without touching the worktree
 #   sides <file>             Show what each side did to a conflicted file (during an in-progress merge)
@@ -65,13 +65,7 @@ resolve_ref() {
 cmd_chain() {
   command -v gh >/dev/null 2>&1 || die "chain needs the gh CLI — write the branches into $STACK_FILE_DEFAULT by hand instead"
 
-  local start="" write=0 a
-  for a in "$@"; do
-    case "$a" in
-      -w|--write) write=1 ;;
-      *) start="$a" ;;
-    esac
-  done
+  local start="${1:-}"
 
   local prs
   prs="$(gh pr list --state open --limit 200 \
@@ -86,7 +80,7 @@ cmd_chain() {
     [ "$start" = HEAD ] && die "detached HEAD — pass a PR number or branch name"
   fi
 
-  printf '%s\n' "$prs" | awk -F'\t' -v start="$start" -v write="$write" \
+  printf '%s\n' "$prs" | awk -F'\t' -v start="$start" \
     -v out="$STACK_FILE_DEFAULT" -v yel="$c_yel" -v dim="$c_dim" -v off="$c_off" '
     { head[$2]=$1; base[$2]=$3; branch[$1]=$2
       kids[$3] = ($3 in kids) ? kids[$3] "\t" $2 : $2 }
@@ -125,12 +119,12 @@ cmd_chain() {
 
       # A chain that stops at a fork is only half the stack — printing it is
       # useful, writing it as if it were the whole thing is not.
-      if (write && !forked) {
+      if (!forked) {
         printf "# Derived by `stack.sh chain`. Trunk first, one branch per line.\n" > out
         for (i = 0; i < j; i++)
           printf "%s%s\n", chain[i], (chain[i] in head) ? "  # PR #" head[chain[i]] : "" >> out
         printf "\n%swrote %d branches to %s%s\n", dim, j, out, off
-      } else if (write) {
+      } else {
         printf "\n%snot written — resolve the fork first.%s\n", yel, off
       }
       if (forked) exit 1

@@ -60,14 +60,13 @@ python3 $D md book.pdf -o baseline.md
 
 For the moment GitHub tells you *"this stack has conflicts that must be resolved"* and you have four branches chained one into the next. Only the first dirty edge is real — resolve that one, commit, and every downstream result changes. This walks the chain in order, whether the stack cascades by merging the parent down or by rebasing (`gh stack rebase`, GitHub's native stacks) — where `--ours` means the opposite of what it means in a merge, and taking the wrong one drops your work without a trace.
 
-```bash
-bash $S chain 5827 -w          # build the chain from the PRs' base branches
-bash $S preflight              # which edges conflict? read-only, safe mid-merge
-bash $S sides src/user.ts      # who refactored, who just edited?
-bash $S touched                # what to run your linter over — not just the conflicted files
+```
+/resolve-stacked-conflicts 5827
 ```
 
-**Setup.** `git` and `bash`. You give it one stacked PR number and `chain` derives the rest from each PR's base branch (that step needs [`gh`](https://cli.github.com/); otherwise write the branches into `stack.txt`). Everything else is plain git, so it works in any language; your project's checks stay yours.
+Any PR in the stack works — the agent rebuilds the chain from each PR's base branch, finds the first edge that actually conflicts, resolves it, checks the result, and moves on. It comes back to you for the two calls that are yours: which child to follow when the stack forks, and any conflict that's a product decision.
+
+**Setup.** `git` and `bash`; rebuilding the chain uses [`gh`](https://cli.github.com/). Everything else is plain git, so it works in any language — the syntax check and formatter are read off your repo, not guessed by the skill.
 
 [→ full docs](./resolve-stacked-conflicts/)
 
