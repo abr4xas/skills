@@ -1,0 +1,9 @@
+# The stacked-PR chain, parent → child, one branch per line, top to bottom.
+# The first line is the trunk everything ultimately merges into.
+#
+# `stack.sh chain <pr> -w` derives this from the PRs and rewrites the file.
+# Edit by hand only when there is no `gh`. Comments and blank lines are ignored.
+main
+feature-base
+feature-middle
+feature-tip

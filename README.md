@@ -10,6 +10,7 @@ Each skill teaches Claude Code (or Cursor, or whatever agent you use) how to do 
 |---|---|---|
 | [**`github-review`**](./github-review/) | Answer PR reviewers and resolve threads from the terminal | [`gh`](https://cli.github.com/) + `jq` |
 | [**`pdf-to-markdown`**](./pdf-to-markdown/) | Debug a bad PDF conversion, then split it into chapters | Docker |
+| [**`resolve-stacked-conflicts`**](./resolve-stacked-conflicts/) | Resolve merge conflicts across a stacked-PR chain, in order | `git` (+ `gh` to derive the chain) |
 
 ## Install
 
@@ -24,6 +25,7 @@ Or just the one you want:
 ```bash
 npx skills add abr4xas/skills --skill github-review
 npx skills add abr4xas/skills --skill pdf-to-markdown
+npx skills add abr4xas/skills --skill resolve-stacked-conflicts
 ```
 
 ## `github-review`
@@ -53,6 +55,21 @@ python3 $D md book.pdf -o baseline.md
 **Setup.** Everything runs inside Docker, so nothing lands on your machine — no virtualenv, no pip. You need the daemon running and the image already local (`docker pull adeuxy/markitdown:latest`); `doctor` tells you where you stand.
 
 [→ full docs](./pdf-to-markdown/)
+
+## `resolve-stacked-conflicts`
+
+For the moment GitHub tells you *"this stack has conflicts that must be resolved"* and you have four branches chained one into the next. Only the first dirty edge is real — resolve that one, commit, and every downstream result changes. This walks the chain in order.
+
+```bash
+bash $S chain 5827 -w          # build the chain from the PRs' base branches
+bash $S preflight              # which edges conflict? read-only, safe mid-merge
+bash $S sides src/user.ts      # who refactored, who just edited?
+bash $S touched                # what to run your linter over — not just the conflicted files
+```
+
+**Setup.** `git` and `bash`. You give it one stacked PR number and `chain` derives the rest from each PR's base branch (that step needs [`gh`](https://cli.github.com/); otherwise write the branches into `stack.txt`). The driver is pure git, so it works in any language; your project's checks stay yours.
+
+[→ full docs](./resolve-stacked-conflicts/)
 
 ---
 
