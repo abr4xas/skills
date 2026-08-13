@@ -1,9 +1,10 @@
 # Templates
 
 Starting points, not libraries. Every PDF is laid out differently, so the job is
-always: **copy the closest template, re-measure its constants against your PDF,
-adapt, verify.** All of them are ordinary pdfplumber scripts that run inside the
-container through `driver.py run`, so nothing gets installed on the host.
+always: **copy the closest template, treat every constant in it as a hypothesis,
+measure, adapt, verify.** All of them are ordinary pdfplumber scripts that run
+inside the container through `driver.py run`, so nothing gets installed on the
+host.
 
 | File | For | Handles |
 |---|---|---|
@@ -27,7 +28,7 @@ python3 $D columns "$PDF" 20 26        # one column or two?
 # 2. copy the closest template
 cp .claude/skills/pdf-to-markdown/templates/single_column_book.py mydoc/extract.py
 
-# 3. MEASURE the constants it needs — never guess them
+# 3. every constant it needs is a hypothesis — measure it
 python3 $D fonts  "$PDF" 0 40          # -> body size, heading sizes, families
 python3 $D repeats "$PDF" 0 86         # -> running header band to drop
 python3 $D layout "$PDF" 40            # -> leading, paragraph gap, indent
@@ -47,12 +48,7 @@ Step 4 is where the work is. Expect three or four rounds of
 
 ## What "verify" means
 
-- **Look at the rendered page.** `page` writes a PNG; open it. Reading only the
-  Markdown hides reordered text — it looks plausible and is wrong.
-- **Count words against the baseline.** `md` gives you markitdown's raw
-  conversion; your output should have roughly the same word count, minus the
-  running headers you deliberately dropped. A large shortfall means you are
-  silently discarding content — usually a margin band cut too aggressively.
-- **`check` the split tree.** Broken anchors and links surface immediately.
-- **`diff` after any change.** If you did not mean to change the output, it must
-  say `identical`.
+The *Verify* section of [`../SKILL.md`](../SKILL.md) is the authority: open the
+PNG and compare (it is the only ground truth), and count words against the
+markitdown baseline. Then `check` the split tree and `diff` after any change —
+recipes 14 and 15 in [`../SPLITTING.md`](../SPLITTING.md).
