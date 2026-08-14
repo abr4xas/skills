@@ -1,17 +1,17 @@
 ---
 name: resolve-stacked-conflicts
-description: "Resolve conflicts across a stacked-PR chain, one edge at a time. Use when GitHub says a stack has conflicts that must be resolved, when merging a trunk or parent branch down into a stacked branch, or when a cascading rebase (gh stack rebase) stops on a conflict."
+description: "Bring a stacked-PR chain back to mergeable, one edge at a time. Use when GitHub says a stack has conflicts that must be resolved, when it offers Rebase stack because a branch is out of date, when merging a trunk or parent branch down into a stacked branch, or when a cascading rebase (gh stack rebase) stops on a conflict."
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
 ---
 
-# Resolving conflicts in a stacked PR chain
+# Getting a stacked PR chain back to mergeable
 
 A stack is a chain of branches where each PR targets the one above it, not the
-trunk. When the trunk moves, the conflict is resolved **once at the base** and
-then **cascaded down**, parent into child, one edge at a time. Stacks
+trunk. When the trunk moves, the work is done **once at the base** and then
+**cascaded down**, parent into child, one edge at a time. Stacks
 [merge from the bottom up](https://docs.github.com/en/pull-requests/get-started/about-stacked-prs),
-and so do their conflicts.
+and so do their fixes.
 
 **Establish which kind of stack this is before you touch it.** A stack cascades
 in one of two ways, and a conflict in each one reads the same in the file while
@@ -84,7 +84,20 @@ into `stack.txt` yourself, and continue.
 bash <skill-dir>/stack.sh preflight
 ```
 
-It prints the chain, then one line per edge: clean, or the conflicted files.
+It prints the chain, then one line per edge, in one of three states:
+
+| Line | Means |
+|---|---|
+| `✓ up to date` | The parent's tip is already an ancestor of the child — this edge is **linear**. |
+| `! behind by N commits, merges clean` | Not linear, nothing conflicting. This is what GitHub calls *out of date*. |
+| `✗ behind by N, M conflicted file(s)` | Not linear, and the cascade will stop here. |
+
+**A stack merges when it is linear** — every child sitting on top of its parent
+— and [GitHub enforces that](https://docs.github.com/en/pull-requests/how-tos/create-pull-requests/managing-stacked-pull-requests)
+whether or not anything conflicts: a `behind … merges clean` edge shows a
+**Rebase stack** button and blocks the merge with no conflict anywhere. So
+conflicts are one of two things this fixes, and the cascade is what fixes both.
+
 Read-only. It uses `git merge-tree --write-tree`, which computes the merge into
 a tree object and never touches HEAD, the index, or the working tree — safe to
 run mid-merge, on a dirty worktree, on any branch.
@@ -99,7 +112,7 @@ To dry-run one arbitrary pair — including two SHAs, to reproduce a past merge:
 bash <skill-dir>/stack.sh edge 9b63989 0efdfee
 ```
 
-**Only the first dirty edge is real.** Resolving it rewrites the child, which
+**Only the first non-linear edge is real.** Moving it rewrites the child, which
 changes every downstream result. Re-run `preflight` after each commit.
 
 ## 2. Move one edge
@@ -110,9 +123,15 @@ git merge main               # or: git merge <parent-branch>
 git diff --name-only --diff-filter=U
 ```
 
-On a **rebase** stack, `gh stack rebase` replays the chain instead and stops at
-the first conflict, printing the conflicted files. Steps 3–5 are the same from
-there; you finish with `gh stack rebase --continue` rather than a commit.
+On a **rebase** stack, `gh stack rebase` replays the whole chain instead and
+stops at the first conflict, printing the conflicted files. Steps 3–5 are the
+same from there; you finish with `gh stack rebase --continue` rather than a
+commit.
+
+**When preflight found no `✗` line, the cascade is the entire job.** Run it end
+to end — `gh stack rebase` on a rebase stack, or `git merge <parent>` down each
+edge in order — then go to `## Done`. Steps 3–5 audit a resolution, and there
+is no resolution here to audit.
 
 ## 3. Attribute each conflict before resolving it
 
@@ -185,11 +204,11 @@ Then commit.
 
 ## Done
 
-**The stack is resolved when a fresh `preflight` reports every edge clean.**
-One resolved edge is one edge, not the job: resolving it rewrites the child,
-which is exactly what makes the next edge conflict. Go back to step 1, work the
-new first dirty edge, and loop until the run comes back green. Then report the
-edges you resolved and what you ported across each one.
+**The stack is done when a fresh `preflight` reports every edge `up to date`.**
+One edge moved is one edge, not the job: moving it rewrites the child, which is
+exactly what makes the next edge conflict. Go back to step 1, work the new
+first non-linear edge, and loop until the run comes back green. Then report the
+edges you moved and what you ported across each one.
 
 ## Gotchas
 
@@ -260,5 +279,8 @@ path in its own variable: `p=app/Foo.php; git cat-file -p "$TREE:$p"`.
 | `no merge or rebase in progress` from `sides` | It reads `HEAD` vs `MERGE_HEAD`/`REBASE_HEAD`. Run it while the operation is paused, before finishing it |
 | A rebase resolution "worked" but your change is gone | You took `--ours`, which in a rebase is the other branch. Redo the commit with `--theirs` |
 | `touched` prints nothing after committing | It falls back to `HEAD^ HEAD`. Run it on the merge commit, or pass the branch pair to `edge` |
-| Audit clean, PR still shows conflicts | You resolved a downstream edge first. Restart from the topmost dirty edge |
+| Audit clean, PR still shows conflicts | You resolved a downstream edge first. Restart from the topmost non-linear edge |
+| GitHub shows *out of date* / **Rebase stack**, preflight found no conflicts | The edge is `behind`, not conflicted. Cascade it — step 2 |
+| `gh stack rebase` left the stack half-rebased | `gh stack rebase --abort` restores every branch to its pre-rebase state |
+| Bottom PR merged; local branches now stale | `gh stack sync --prune` — fetches, rebases, pushes, and drops merged branches |
 | Parse error on `<<` or `<<<<<<<` | A conflict marker is still in the file — `markers` lists which |

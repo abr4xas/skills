@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Driver for resolving merge conflicts across a stacked-PR chain.
+# Driver for getting a stacked-PR chain mergeable again, edge by edge.
 # Git only (plus `gh` for `chain`): nothing here knows or cares what language
 # the repo is in.
 # See SKILL.md for the workflow.
@@ -8,8 +8,8 @@
 #
 # Commands:
 #   chain [pr|branch]        Derive the branch chain from the PRs' base refs and write stack.txt (needs `gh`)
-#   preflight [stack-file]   Report conflicts for every edge of the stack, without touching the worktree
-#   edge <parent> <child>    Report conflicts for a single merge, without touching the worktree
+#   preflight [stack-file]   Report every edge of the stack: up to date, behind, or conflicted
+#   edge <parent> <child>    Report one edge: up to date, behind, or conflicted
 #   sides <file>             Show what each side did to a conflicted file (during an in-progress merge)
 #   touched [glob]           List every file the merge changed, on either side — feed this to the
 #                            project's own syntax check and formatter
@@ -132,28 +132,42 @@ cmd_chain() {
 }
 
 # --- edge -------------------------------------------------------------------
-# Dry-run a single merge with `git merge-tree --write-tree`. Exit 0 => clean,
-# 1 => conflicts. Writes a tree object into the odb but never touches HEAD,
-# the index, or the working tree, so it is safe to run mid-merge.
+# Answer both questions GitHub asks of an edge:
+#
+#   linear?    is the parent's tip already an ancestor of the child? If not the
+#              child is BEHIND — GitHub calls the stack non-linear, shows
+#              "Rebase stack", and refuses to merge it. No conflict required.
+#   conflicts? dry-run the merge with `git merge-tree --write-tree`.
+#
+# Exit 0 => up to date, 1 => conflicts, 2 => behind but merges clean. Writes a
+# tree object into the odb, never HEAD/index/worktree, so it is safe mid-merge.
 cmd_edge() {
-  local parent child pref cref out tree rc
+  local parent child pref cref out tree rc behind
   parent="${1:?usage: edge <parent> <child>}"
   child="${2:?usage: edge <parent> <child>}"
   pref="$(resolve_ref "$parent")" || exit 1
   cref="$(resolve_ref "$child")" || exit 1
+
+  if git merge-base --is-ancestor "$pref" "$cref" 2>/dev/null; then
+    printf '%s✓%s %s → %s %sup to date%s\n' "$c_grn" "$c_off" "$parent" "$child" "$c_dim" "$c_off"
+    return 0
+  fi
+  behind="$(git rev-list --count "$cref..$pref" 2>/dev/null)"
 
   out="$(git merge-tree --write-tree --name-only "$cref" "$pref" 2>&1)"
   rc=$?
   tree="$(printf '%s' "$out" | head -1)"
 
   if [ $rc -eq 0 ]; then
-    printf '%s✓%s %s → %s %sclean%s\n' "$c_grn" "$c_off" "$parent" "$child" "$c_dim" "$c_off"
-    return 0
+    printf '%s!%s %s → %s %sbehind by %s commit(s), merges clean — cascade it%s\n' \
+      "$c_yel" "$c_off" "$parent" "$child" "$c_dim" "${behind:-?}" "$c_off"
+    return 2
   fi
 
   local files
   files="$(printf '%s' "$out" | sed -n '2,/^$/p' | sed '/^$/d')"
-  printf '%s✗%s %s → %s %s\n' "$c_red" "$c_off" "$parent" "$child" \
+  printf '%s✗%s %s → %s %sbehind by %s commit(s), %s\n' "$c_red" "$c_off" "$parent" "$child" \
+    "$c_off" "${behind:-?}" \
     "$(printf '%s' "$files" | grep -c . | tr -d ' ') conflicted file(s)"
   printf '%s' "$files" | sed 's/^/    /'
   printf '\n'
@@ -183,22 +197,31 @@ cmd_preflight() {
 
   printf '%sstack:%s %s\n\n' "$c_dim" "$c_off" "$(printf '%s → ' "${branches[@]}" | sed 's/ → $//')"
 
-  local dirty=0 i
+  local conflicted=0 behind=0 i rc
   for (( i = 0; i < ${#branches[@]} - 1; i++ )); do
-    cmd_edge "${branches[i]}" "${branches[i+1]}" || dirty=1
+    cmd_edge "${branches[i]}" "${branches[i+1]}"; rc=$?
+    [ $rc -eq 1 ] && conflicted=1
+    [ $rc -eq 2 ] && behind=1
   done
 
   printf '\n'
-  if [ $dirty -eq 0 ]; then
-    printf '%sEvery edge is clean.%s Nothing to resolve.\n' "$c_grn" "$c_off"
-  else
+  if [ $conflicted -eq 1 ]; then
     # Only the FIRST dirty edge is real. Resolving it rewrites the child, which
     # changes every downstream dry-run. Re-run preflight after each commit.
-    printf '%sResolve the first dirty edge, commit, then re-run preflight.%s\n' "$c_yel" "$c_off"
+    printf '%sResolve the first conflicted edge, commit, then re-run preflight.%s\n' "$c_yel" "$c_off"
     printf '%sDownstream results are provisional — they are computed against the\n' "$c_dim"
     printf 'pre-resolution child and will change once you commit.%s\n' "$c_off"
+    return 1
   fi
-  return $dirty
+  if [ $behind -eq 1 ]; then
+    # Clean but non-linear: GitHub blocks the merge and shows "Rebase stack".
+    # Nothing to resolve, but the cascade still has to run.
+    printf '%sNo conflicts, but the stack is not linear.%s Cascade it — every child\n' "$c_yel" "$c_off"
+    printf 'has to sit on top of its parent before GitHub will merge the stack.\n'
+    return 2
+  fi
+  printf '%sEvery edge is up to date.%s Linear and conflict-free.\n' "$c_grn" "$c_off"
+  return 0
 }
 
 # --- in-progress operation --------------------------------------------------

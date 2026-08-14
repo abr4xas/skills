@@ -10,7 +10,7 @@ Each skill teaches Claude Code (or Cursor, or whatever agent you use) how to do 
 |---|---|---|
 | [**`github-review`**](./github-review/) | Answer PR reviewers and resolve threads from the terminal | [`gh`](https://cli.github.com/) + `jq` |
 | [**`pdf-to-markdown`**](./pdf-to-markdown/) | Debug a bad PDF conversion, then split it into chapters | Docker |
-| [**`resolve-stacked-conflicts`**](./resolve-stacked-conflicts/) | Resolve merge conflicts across a stacked-PR chain, in order | `git` (+ `gh` to derive the chain) |
+| [**`resolve-stacked-conflicts`**](./resolve-stacked-conflicts/) | Get a stacked-PR chain mergeable again, edge by edge, in order | `git` (+ `gh` to derive the chain) |
 
 ## Install
 
@@ -58,7 +58,7 @@ python3 $D md book.pdf -o baseline.md
 
 ## `resolve-stacked-conflicts`
 
-For the moment GitHub tells you *"this stack has conflicts that must be resolved"* and you have four branches chained one into the next. Only the first dirty edge is real — resolve that one, commit, and every downstream result changes. This walks the chain in order, whether the stack cascades by merging the parent down or by rebasing (`gh stack rebase`, GitHub's native stacks) — where `--ours` means the opposite of what it means in a merge, and taking the wrong one drops your work without a trace.
+For the moment GitHub tells you *"this stack has conflicts that must be resolved"* and you have four branches chained one into the next. Only the first dirty edge is real — resolve that one, commit, and every downstream result changes. This walks the chain in order, whether the stack cascades by merging the parent down or by rebasing (`gh stack rebase`, GitHub's native stacks) — where `--ours` means the opposite of what it means in a merge, and taking the wrong one drops your work without a trace. It also catches the quieter blocker: a branch that's merely *out of date*, which stops the merge with nothing conflicting to point at.
 
 ```
 /resolve-stacked-conflicts 5827

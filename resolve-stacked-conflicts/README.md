@@ -1,9 +1,10 @@
 # resolve-stacked-conflicts
 
-When GitHub says *"this stack has conflicts that must be resolved"*, the work is
-not one merge — it's a chain of them. Each branch targets the one above it, so
-the conflict gets resolved once at the base and then cascaded down, parent into
-child, one edge at a time. Start at the wrong edge and you redo the whole thing.
+When GitHub says *"this stack has conflicts that must be resolved"* — or just
+offers you **Rebase stack** because a branch is out of date — the work is not
+one merge. It's a chain of them. Each branch targets the one above it, so the
+fix lands once at the base and then cascades down, parent into child, one edge
+at a time. Start at the wrong edge and you redo the whole thing.
 
 ## Install
 
@@ -21,9 +22,13 @@ Give your agent the PR number. That's the whole interface:
 
 Any PR in the stack works — top, middle or bottom — and with no number at all it
 starts from the branch you're on. From there the agent rebuilds the chain from
-each PR's base branch, finds the first edge that actually conflicts, resolves
-it, checks the result, and moves to the next one. The chain is derived fresh on
+each PR's base branch, finds the first edge that's behind or conflicted, moves
+it, checks the result, and goes to the next one. The chain is derived fresh on
 every invocation, so a stack that changed since last time just works.
+
+It reads both of the things GitHub blocks a stack for. An *out-of-date* branch
+— one that doesn't sit on top of its parent — stops the merge with no conflict
+anywhere, and gets reported as its own state rather than passing as clean.
 
 It asks you exactly two kinds of question: which child to follow when a branch
 has two PRs stacked on it (that's a tree, not a chain), and how to resolve a
