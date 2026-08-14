@@ -1,6 +1,6 @@
 ---
 name: resolve-stacked-conflicts
-description: "Resolve merge conflicts across a stacked-PR chain, in any language. Use when GitHub says a stack has conflicts that must be resolved, when merging the trunk into a stacked branch, when a cascading rebase (gh stack rebase) stops on a conflict, or when cascading a parent branch down through its children. Covers preflight conflict detection across the whole chain, per-file side attribution, and the audit that catches breakage git never marks."
+description: "Resolve conflicts across a stacked-PR chain, one edge at a time. Use when GitHub says a stack has conflicts that must be resolved, when merging a trunk or parent branch down into a stacked branch, or when a cascading rebase (gh stack rebase) stops on a conflict."
 metadata:
   version: "0.1.0"
 ---
@@ -13,22 +13,19 @@ then **cascaded down**, parent into child, one edge at a time. Stacks
 [merge from the bottom up](https://docs.github.com/en/pull-requests/get-started/about-stacked-prs),
 and so do their conflicts.
 
-**Find out which kind of stack this is before you touch it.** A stack moves in
-one of two ways, and they need opposite resolutions:
+**Establish which kind of stack this is before you touch it.** A stack cascades
+in one of two ways, and a conflict in each one reads the same in the file while
+meaning opposite things — see *In a rebase, `--ours` is not yours*:
 
-| | who moves | the other side is |
-|---|---|---|
-| **merge-down** — `git merge <parent>` into the child | the child gains a merge commit | what you merged in |
-| **cascading rebase** — `gh stack rebase`, or GitHub's server-side rebase | the child's commits are replayed | **your own commit** |
+- **merge-down** — `git merge <parent>` into each child, which gains a merge
+  commit.
+- **rebase** — `gh stack rebase` or GitHub's server-side rebase replays the
+  child's commits. GitHub's native stacks work this way, and when the bottom PR
+  merges the server rebases the rest and re-targets them at the trunk on its
+  own, so leave that cascade to it. Native stacks live in one repo, never
+  across forks.
 
-GitHub's native stacks rebase. `gh stack view` prints the chain if the repo
-uses them (`gh extension install github/gh-stack`); when the bottom PR merges,
-GitHub rebases the rest and re-targets them at the trunk on its own — don't
-hand-cascade what the server is about to redo. Native stacks also require every
-branch in one repo: cross-fork stacks are unsupported.
-
-Either way the file looks the same, `sides` reports which operation is in
-flight, and everything below applies.
+Everything below applies to both, and `sides` names which one is in flight.
 
 **You run every command here.** The user invokes this skill with a PR number
 and nothing else — `/resolve-stacked-conflicts 5827` — or with nothing at all,
@@ -49,9 +46,9 @@ Deciding what "still valid" means for this repo is your job, in step 4.
 ## 0. Rebuild the chain — every invocation, first thing
 
 Every command works off `stack.txt` next to the driver — trunk first, one
-branch per line. Never trust the one already there: it is left over from
-whatever stack ran last. `chain` overwrites it, so run it before anything else,
-with the PR the user gave you.
+branch per line. The copy on disk belongs to whatever stack ran last, so
+`chain` overwrites it: run it first, every invocation, with the PR the user
+gave you.
 
 A stacked PR already records its parent in its `base` branch, so the whole
 chain rebuilds itself from that one number — nobody edits the file by hand.
@@ -65,8 +62,6 @@ main            (trunk)
 feature-base    #5782
 feature-middle  #5827
 feature-tip     #5845
-
-wrote 4 branches to …/stack.txt
 ```
 
 Pass whatever the user gave you — any PR number or branch in the stack works,
@@ -77,10 +72,11 @@ When one branch has two PRs stacked on it the stack is a tree, not a chain:
 `chain` lists the children, writes nothing and exits non-zero. That is a
 question for the user — show them the children and ask which one to follow.
 
-This is the only command that needs `gh`. On a GitHub-native stack,
-`gh stack view` is the authority and `chain` merely reconstructs the same thing
-from the base branches — use whichever answers. With no `gh` at all, ask the
-user for the branch names, write them into `stack.txt` yourself, and continue.
+This is the only command that needs `gh`. On a native stack,
+`gh stack view` (`gh extension install github/gh-stack`) is the authority and
+`chain` reconstructs the same thing from the base branches — use whichever
+answers. With no `gh` at all, ask the user for the branch names, write them
+into `stack.txt` yourself, and continue.
 
 ## 1. Preflight — see the whole stack before touching anything
 
@@ -88,15 +84,7 @@ user for the branch names, write them into `stack.txt` yourself, and continue.
 bash <skill-dir>/stack.sh preflight
 ```
 
-```
-stack: main → feature-base → feature-middle → feature-tip
-
-✓ main → feature-base                clean
-✓ feature-base → feature-middle      clean
-…
-Every edge is clean. Nothing to resolve.
-```
-
+It prints the chain, then one line per edge: clean, or the conflicted files.
 Read-only. It uses `git merge-tree --write-tree`, which computes the merge into
 a tree object and never touches HEAD, the index, or the working tree — safe to
 run mid-merge, on a dirty worktree, on any branch.
@@ -111,14 +99,6 @@ To dry-run one arbitrary pair — including two SHAs, to reproduce a past merge:
 bash <skill-dir>/stack.sh edge 9b63989 0efdfee
 ```
 
-```
-✗ 9b63989 → 0efdfee  3 conflicted file(s)
-    src/webhooks/handler.ts
-    src/services/user.ts
-    tests/webhooks/handler.test.ts
-    CONFLICT (content): Merge conflict in src/webhooks/handler.ts
-```
-
 **Only the first dirty edge is real.** Resolving it rewrites the child, which
 changes every downstream result. Re-run `preflight` after each commit.
 
@@ -130,7 +110,7 @@ git merge main               # or: git merge <parent-branch>
 git diff --name-only --diff-filter=U
 ```
 
-On a rebasing stack, `gh stack rebase` replays the chain instead and stops at
+On a **rebase** stack, `gh stack rebase` replays the chain instead and stops at
 the first conflict, printing the conflicted files. Steps 3–5 are the same from
 there; you finish with `gh stack rebase --continue` rather than a commit.
 
@@ -201,14 +181,22 @@ Run the project's formatter with an **explicit file list** — the files you
 resolved, nothing else. Never the project-wide or `--dirty` form; see
 *A project-wide format is unusable mid-merge*.
 
-Then commit, and go back to step 1 for the next edge.
+Then commit.
+
+## Done
+
+**The stack is resolved when a fresh `preflight` reports every edge clean.**
+One resolved edge is one edge, not the job: resolving it rewrites the child,
+which is exactly what makes the next edge conflict. Go back to step 1, work the
+new first dirty edge, and loop until the run comes back green. Then report the
+edges you resolved and what you ported across each one.
 
 ## Gotchas
 
 **In a rebase, `--ours` is not yours.** Rebasing replays your commits onto the
 other branch, so git labels the *other* branch `ours` (it is what HEAD holds
 while replaying) and your own commit `theirs` — the exact inverse of a merge.
-Resolve a paused `gh stack rebase` with the merge-day reflex and `--ours` keeps
+Resolve a paused `gh stack rebase` with the merge reflex and `--ours` keeps
 the trunk while quietly dropping your work, with a clean-looking result. Run
 `sides` first: it names the operation in flight and labels the two sides
 accordingly.
