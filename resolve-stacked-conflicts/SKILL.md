@@ -276,6 +276,15 @@ identical before and after the merge — pre-existing, not yours. Run the
 directories the merge touched rather than the whole suite; a suite that dies on
 a memory or time limit tells you nothing either way.
 
+**A PR from a fork reads as `behind`, whatever its real state.** `verify` asks
+git whether the base tip is an ancestor of the PR's `headRefOid`, and git can
+only answer about a sha it has. A fork's head never arrives from a plain
+`git fetch origin`, so the check fails and the edge prints red. The direction is
+safe — a fork PR is never falsely green — but the reason on screen is wrong. Pull
+the head first (`git fetch origin pull/<n>/head`) and re-run, or read red as
+*unknown* on any PR whose head branch does not live in your repo. Stacks of your
+own branches never hit this.
+
 **A busy trunk outruns the cascade.** Every push to the trunk un-linearises the
 whole stack again, so on an active repo a green run has a short shelf life — one
 run here went green twice and was stale both times, minutes later. Cascading is
@@ -313,6 +322,7 @@ path in its own variable: `p=app/Foo.php; git cat-file -p "$TREE:$p"`.
 | Audit clean, PR still shows conflicts | You resolved a downstream edge first. Restart from the topmost non-linear edge |
 | GitHub shows *out of date* / **Rebase stack**, preflight found no conflicts | The edge is `behind`, not conflicted. Cascade it — step 2 |
 | `preflight` green but GitHub still says *out of date* | The trunk moved after your last cascade. `verify` catches this; cascade again |
+| `verify` says `behind` on a PR you did not branch | It is probably from a fork, whose head is not in your repo. `git fetch origin pull/<n>/head`, then re-run |
 | `gh stack rebase` left the stack half-rebased | `gh stack rebase --abort` restores every branch to its pre-rebase state |
 | Bottom PR merged; local branches now stale | `gh stack sync --prune` — fetches, rebases, pushes, and drops merged branches |
 | Parse error on `<<` or `<<<<<<<` | A conflict marker is still in the file — `markers` lists which |
