@@ -1,11 +1,11 @@
 ---
-name: github-review
-description: Reply to GitHub PR and issue comments, and resolve review threads, from the terminal via the gh CLI. Use when addressing code-review feedback, replying to reviewers like coderabbitai on a pull request or issue, or resolving the threads you have handled.
+name: answer-reviewers
+description: Answer the reviewers on a GitHub PR or issue and resolve the threads you have handled, from the terminal via the gh CLI. Use when addressing code-review feedback, replying to a reviewer like coderabbitai or Copilot, commenting on a pull request or issue, or resolving and unresolving review threads.
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
 ---
 
-# github-review
+# Answering the reviewers on a PR
 
 ## Setup: the driver, and where it posts
 

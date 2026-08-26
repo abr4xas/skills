@@ -1,4 +1,4 @@
-# github-review
+# answer-reviewers
 
 Reply to PR reviewers, comment on issues, and resolve review threads — all from the terminal, no clicking through GitHub.
 
@@ -7,7 +7,7 @@ For the moment `coderabbitai` leaves 12 comments on your PR and you'd rather ans
 ## Install
 
 ```bash
-npx skills add abr4xas/skills --skill github-review
+npx skills add abr4xas/skills --skill answer-reviewers
 ```
 
 Prerequisites: the [`gh` CLI](https://cli.github.com/) authenticated (`gh auth status`) and `jq` on your `PATH`.
