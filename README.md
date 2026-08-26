@@ -54,6 +54,8 @@ bash $DRIVER resolve PRRT_kwDO...
 
 It joins the two views on the one field they agree about, and treats the comment list as a denominator: every comment ends up answered, or named as deliberately skipped. Twelve comments and four replies reads exactly like twelve comments and twelve replies, unless something is counting.
 
+Anything that posts stops first and prints the exact body it is about to send. At a terminal it asks; driven by an agent it exits without sending and returns a `--confirm` token that matches only that text. Reading never asks. One extra step per reply, for the moment worth watching: this is where an agent that reads your repo meets a comment box the whole internet can see.
+
 > [!TIP]
 > Two rules keep the replies honest: claim a fix only once it's committed, and name the commit (`Fixed in a9d76ce.`) so the reviewer can check. Resolve a thread only when its fix actually landed — an unresolved thread is recoverable, a resolved one buries the comment.
 
