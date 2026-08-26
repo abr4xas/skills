@@ -2,7 +2,7 @@
 name: resolve-stacked-conflicts
 description: "Bring a stacked-PR chain back to mergeable, one edge at a time. Use when GitHub says a stack has conflicts that must be resolved, when it offers Rebase stack because a branch is out of date, when merging a trunk or parent branch down into a stacked branch, or when a cascading rebase (gh stack rebase) stops on a conflict."
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
 ---
 
 # Getting a stacked PR chain back to mergeable
@@ -40,7 +40,7 @@ The git work runs through one driver, next to this file:
 bash <skill-dir>/stack.sh <command>
 ```
 
-Git only, apart from `chain` — it knows nothing about the project's language.
+Git only, apart from `chain` and `verify` — it knows nothing about the project's language.
 Deciding what "still valid" means for this repo is your job, in step 4.
 
 ## 0. Rebuild the chain — every invocation, first thing
@@ -72,7 +72,7 @@ When one branch has two PRs stacked on it the stack is a tree, not a chain:
 `chain` lists the children, writes nothing and exits non-zero. That is a
 question for the user — show them the children and ask which one to follow.
 
-This is the only command that needs `gh`. On a native stack,
+This and `verify` are the two commands that need `gh`. On a native stack,
 `gh stack view` (`gh extension install github/gh-stack`) is the authority and
 `chain` reconstructs the same thing from the base branches — use whichever
 answers. With no `gh` at all, ask the user for the branch names, write them
@@ -204,11 +204,25 @@ Then commit.
 
 ## Done
 
-**The stack is done when a fresh `preflight` reports every edge `up to date`.**
 One edge moved is one edge, not the job: moving it rewrites the child, which is
-exactly what makes the next edge conflict. Go back to step 1, work the new
-first non-linear edge, and loop until the run comes back green. Then report the
-edges you moved and what you ported across each one.
+exactly what makes the next edge conflict. Go back to step 1, work the new first
+non-linear edge, and loop until `preflight` comes back green.
+
+Then **close against GitHub, not against the working copy**:
+
+```bash
+bash <skill-dir>/stack.sh verify
+```
+
+`preflight` answers about `origin/*`; `verify` asks the pull requests, resolving
+each base branch's **current** tip and checking the head already contains it —
+which is the question behind the *Rebase stack* button the reviewer is looking
+at. Green preflight plus red verify means the trunk moved while you worked.
+
+**The stack is done when `verify` is green.** Then report the edges you moved and
+what you ported across each one. Whatever still blocks the merge after that is
+review, not the stack — say which, so nobody re-runs this skill on a PR that is
+only waiting for an approval.
 
 ## Gotchas
 
@@ -262,6 +276,23 @@ identical before and after the merge — pre-existing, not yours. Run the
 directories the merge touched rather than the whole suite; a suite that dies on
 a memory or time limit tells you nothing either way.
 
+**A busy trunk outruns the cascade.** Every push to the trunk un-linearises the
+whole stack again, so on an active repo a green run has a short shelf life — one
+run here went green twice and was stale both times, minutes later. Cascading is
+cheap but it caches nothing: prefer to cascade **immediately before the merge**,
+and leave the stack out of date while it waits for review, where being behind
+costs nothing and blocks no reading. When you do report green, timestamp it
+against `verify` rather than implying it holds indefinitely.
+
+**A clean merge can still make your branch lie.** The trunk can change a
+behaviour your branch *describes* without touching a file your branch edited:
+git has nothing to conflict, the code compiles, the tests pass, and a docblock,
+an OpenAPI description, a spec or a README now states something false. One run
+merged a trunk that moved `is_own_account` from derived to client-supplied, and
+the branch's own endpoint description still promised the old rule. After a clean
+merge, read what the other side *changed in behaviour* and grep your branch for
+claims about it. Prose is the blast radius no check covers.
+
 **Compare against an old version in place, not in a worktree.** `git worktree`
 plus symlinked or per-checkout dependencies breaks most test bootstraps. To see
 a file as it was: `git show <sha>:<path> > <path>`, look, then restore it.
@@ -281,6 +312,7 @@ path in its own variable: `p=app/Foo.php; git cat-file -p "$TREE:$p"`.
 | `touched` prints nothing after committing | It falls back to `HEAD^ HEAD`. Run it on the merge commit, or pass the branch pair to `edge` |
 | Audit clean, PR still shows conflicts | You resolved a downstream edge first. Restart from the topmost non-linear edge |
 | GitHub shows *out of date* / **Rebase stack**, preflight found no conflicts | The edge is `behind`, not conflicted. Cascade it — step 2 |
+| `preflight` green but GitHub still says *out of date* | The trunk moved after your last cascade. `verify` catches this; cascade again |
 | `gh stack rebase` left the stack half-rebased | `gh stack rebase --abort` restores every branch to its pre-rebase state |
 | Bottom PR merged; local branches now stale | `gh stack sync --prune` — fetches, rebases, pushes, and drops merged branches |
 | Parse error on `<<` or `<<<<<<<` | A conflict marker is still in the file — `markers` lists which |

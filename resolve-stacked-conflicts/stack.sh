@@ -9,6 +9,7 @@
 # Commands:
 #   chain [pr|branch]        Derive the branch chain from the PRs' base refs and write stack.txt (needs `gh`)
 #   preflight [stack-file]   Report every edge of the stack: up to date, behind, or conflicted
+#   verify [stack-file]      Ask GitHub whether each PR still contains its base branch
 #   edge <parent> <child>    Report one edge: up to date, behind, or conflicted
 #   sides <file>             Show what each side did to a conflicted file (during an in-progress merge)
 #   touched [glob]           List every file the merge changed, on either side — feed this to the
@@ -44,8 +45,11 @@ resolve_ref() {
     remote="$(git rev-parse "origin/$ref")"
     if git rev-parse --verify --quiet "$ref" >/dev/null 2>&1; then
       local_sha="$(git rev-parse "$ref")"
-      if [ "$remote" != "$local_sha" ]; then
-        printf '%swarn:%s %s: local %s != origin/%s %s — using origin\n' \
+      # Local behind origin is normal and harmless — origin is what the PR merges.
+      # Local *ahead* means commits that exist nowhere GitHub can see, so the
+      # preflight is answering about a different branch than the one under review.
+      if [ "$remote" != "$local_sha" ] && ! git merge-base --is-ancestor "$local_sha" "$remote" 2>/dev/null; then
+        printf '%swarn:%s %s: local %s has commit(s) not on origin/%s %s — push them, or the preflight is about a branch nobody else has\n' \
           "$c_yel" "$c_off" "$ref" "${local_sha:0:10}" "$ref" "${remote:0:10}" >&2
       fi
     fi
@@ -187,6 +191,17 @@ cmd_preflight() {
   local stack_file="${1:-$STACK_FILE_DEFAULT}"
   [ -f "$stack_file" ] || die "no stack file at $stack_file (see SKILL.md for the format)"
 
+  # Refresh first. Every edge is computed against origin/*, so without this a green
+  # run only means the stack was linear whenever you last fetched — and on a busy
+  # trunk that is the difference between "done" and "GitHub still says out of date".
+  if [ "${STACK_NO_FETCH:-}" = "1" ]; then
+    printf '%sskipping fetch (STACK_NO_FETCH=1) — edges are computed against whatever origin/* holds now%s\n\n' "$c_yel" "$c_off"
+  elif git fetch --quiet origin 2>/dev/null; then
+    :
+  else
+    printf '%swarn:%s git fetch failed — edges below are computed against a possibly stale origin/*\n\n' "$c_yel" "$c_off"
+  fi
+
   local -a branches=()
   while IFS= read -r line; do
     line="${line%%#*}"; line="$(printf '%s' "$line" | tr -d '[:space:]')"
@@ -315,6 +330,63 @@ cmd_markers() {
   printf '%s✓ no conflict markers%s\n' "$c_grn" "$c_off"
 }
 
+# --- verify -----------------------------------------------------------------
+# Ask GitHub, not the working copy. `preflight` answers about origin/*; this
+# answers about the pull requests, which is what the reviewer is looking at.
+# For each PR it resolves the CURRENT tip of the base branch (not the sha frozen
+# in the PR record) and checks the head already contains it.
+cmd_verify() {
+  command -v gh >/dev/null 2>&1 || die "verify needs the gh CLI"
+  local stack_file="${1:-$STACK_FILE_DEFAULT}"
+  [ -f "$stack_file" ] || die "no stack file at $stack_file (see SKILL.md for the format)"
+
+  git fetch --quiet origin 2>/dev/null || printf '%swarn:%s git fetch failed — comparing against a possibly stale origin/*\n' "$c_yel" "$c_off" >&2
+
+  local -a branches=()
+  while IFS= read -r line; do
+    line="${line%%#*}"; line="$(printf '%s' "$line" | tr -d '[:space:]')"
+    [ -n "$line" ] && branches+=("$line")
+  done < "$stack_file"
+  # Without this, an empty or comment-only stack file iterates zero PRs and
+  # reports green — and green here is what SKILL.md calls done.
+  [ "${#branches[@]}" -ge 2 ] || die "stack file needs at least 2 branches"
+
+  local stale=0 branch pr json base head tip
+  # Skip index 0: the trunk has no PR of its own.
+  for branch in "${branches[@]:1}"; do
+    json="$(gh pr list --head "$branch" --state open --limit 1 \
+      --json number,baseRefName,headRefOid,mergeable,mergeStateStatus 2>/dev/null)" || json=""
+    if [ -z "$json" ] || [ "$json" = "[]" ]; then
+      printf '%s?%s %-34s no open PR\n' "$c_yel" "$c_off" "$branch"
+      continue
+    fi
+    pr="$(printf '%s' "$json"   | sed -n 's/.*"number":\([0-9]*\).*/\1/p')"
+    base="$(printf '%s' "$json" | sed -n 's/.*"baseRefName":"\([^"]*\)".*/\1/p')"
+    head="$(printf '%s' "$json" | sed -n 's/.*"headRefOid":"\([^"]*\)".*/\1/p')"
+
+    tip="$(git rev-parse --verify --quiet "origin/$base" 2>/dev/null)" || tip=""
+    if [ -z "$tip" ]; then
+      printf '%s?%s #%-5s %-28s base origin/%s not fetched\n' "$c_yel" "$c_off" "$pr" "$branch" "$base"
+      continue
+    fi
+
+    if git merge-base --is-ancestor "$tip" "$head" 2>/dev/null; then
+      printf '%s✓%s #%-5s %-28s contains origin/%s\n' "$c_grn" "$c_off" "$pr" "$branch" "$base"
+    else
+      stale=1
+      printf '%s✗%s #%-5s %-28s behind origin/%s — GitHub will offer Rebase stack\n' \
+        "$c_red" "$c_off" "$pr" "$branch" "$base"
+    fi
+  done
+
+  printf '\n'
+  if [ $stale -eq 1 ]; then
+    printf '%sA PR is out of date on GitHub.%s Cascade that edge and run verify again.\n' "$c_yel" "$c_off"
+    return 1
+  fi
+  printf '%sEvery PR contains its base.%s Anything still blocking is review, not the stack.\n' "$c_grn" "$c_off"
+}
+
 # --- dispatch ---------------------------------------------------------------
 case "${1:-}" in
   chain)     shift; cd_repo_root; cmd_chain "$@" ;;
@@ -323,5 +395,6 @@ case "${1:-}" in
   sides)     shift; cd_repo_root; cmd_sides "$@" ;;
   touched)   shift; cd_repo_root; cmd_touched "$@" ;;
   markers)   shift; cd_repo_root; cmd_markers "$@" ;;
+  verify)    shift; cd_repo_root; cmd_verify "$@" ;;
   *) awk 'NR>1 && !/^#/{exit} NR>1{sub(/^# ?/,""); print}' "${BASH_SOURCE[0]}"; exit 1 ;;
 esac
