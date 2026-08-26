@@ -81,5 +81,12 @@ worth keeping shouldn't be.
 ## Setup
 
 `git`. Reading a PR or issue uses [`gh`](https://cli.github.com/) — without it
-you can still point the skill at a branch or commit range. The report needs a
-browser and a network connection the first time it loads the two CDNs.
+you can still point the skill at a branch or commit range.
+
+The report needs a browser and, the first time it loads, a network: it pulls
+Tailwind and Mermaid from CDNs. Mermaid is pinned to an exact version and runs
+in strict mode, because it is the one part of the page that renders text and so
+the only place ingested material could reach a renderer — quoted comments stay
+out of its diagrams entirely. Tailwind only reads the class attributes the agent
+wrote, so there is nothing to inject into it. Offline the page renders unstyled
+with no diagrams: the prose survives, the design does not.
