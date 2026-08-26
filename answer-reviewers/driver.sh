@@ -37,6 +37,9 @@ Commands:
   list-review   <pr>                         List review comments with IDs
   list-threads  <pr>                         List review threads (threadId, commentId, author, path, state)
   get-comment   <comment_id>                 Get a single review comment
+
+Anything that posts, and resolve, print the payload and stop. Repeat the call with
+--confirm <token> to send it; the token shown belongs to that exact payload.
 EOF
   exit 1
 }
