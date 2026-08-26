@@ -12,6 +12,13 @@ npx skills add abr4xas/skills --skill answer-reviewers
 
 Prerequisites: the [`gh` CLI](https://cli.github.com/) authenticated (`gh auth status`) and `jq` on your `PATH`.
 
+Anything that posts — replies, comments, and resolving a thread — stops first and
+shows you the exact body it is about to send. At a terminal it asks; run by an
+agent it exits without sending and hands back a `--confirm` token that only
+matches that exact text. Reading never asks. It costs you one extra step per
+reply, and buys the one thing worth having: the agent reads your repo and writes
+in public, so the moment where those meet is on screen before it is permanent.
+
 ## First run
 
 The repo is auto-detected — `$GITHUB_REPO` if set (`owner/repo`), otherwise whatever `gh repo view` infers from the current directory's git remote. So **run the driver with your target repo as the working directory**, and confirm the resolution before you post: a wrong CWD puts real comments on the wrong repository.
