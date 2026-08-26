@@ -46,13 +46,13 @@ One self-contained HTML file in the OS temp directory. Tailwind and Mermaid from
 
 ## What the page loads from the network
 
-The report is self-contained in the sense that it is one file you can move around — not in the sense that it runs alone. It executes two remote scripts on open: Tailwind from `cdn.tailwindcss.com`, and Mermaid from jsDelivr. Say so plainly when you hand the file over, because three things follow and the reader should know all three:
+Two CDNs: Tailwind and Mermaid. They are not the same kind of dependency, and the difference is the whole point.
 
-- **Opening the report tells those CDNs you opened it** — your IP, the time. The report's contents never leave, but the fetch itself is a signal.
-- **Offline, the page renders unstyled and the diagrams do not draw.** The prose and the evidence survive; the design does not.
-- **A compromised CDN runs its code in your browser with a local-file origin.** Pinning Mermaid to an exact version bounds this, since a pinned file on jsDelivr is immutable. Tailwind's CDN URL carries no version at all, so it is always whatever shipped today.
+**Mermaid renders text.** It is the one place on the page where ingested material could reach a renderer, which is why it is pinned to an exact version — `mermaid@11` is a range that resolves to whatever 11.x shipped this morning, the same mutability a `:latest` docker tag has — and why it runs at `securityLevel: "strict"` with quoted material kept out of its blocks entirely. Bump the pin deliberately.
 
-When any of that is unacceptable — a report about a client's private repo, a machine with no egress, a reviewer who will not run remote script — write the page with plain inline `<style>` and hand-built SVG instead. Every diagram pattern below except the Mermaid ones already works that way, and the report loses its styling, not its argument.
+**Tailwind reads class attributes the agent wrote.** No ingested text reaches it, so there is no injection surface to close; it is a styling dependency, and an unpinned one by design, since its CDN URL carries no version.
+
+What is true of both, worth a sentence when handing the file over: opening the report tells those CDNs you opened it, and offline the page renders unstyled with no diagrams — the prose and the evidence survive, the design does not. If a report must not touch the network at all, write it with inline `<style>` and hand-built SVG; every diagram pattern below except the Mermaid ones already works that way.
 
 ## Escaping ingested text
 
