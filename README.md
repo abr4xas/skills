@@ -36,8 +36,6 @@ The installer writes them into your repo as ordinary files you own and can edit.
 
 ## Why these exist
 
-Each of these started as a bad afternoon.
-
 ### #1: The review came back with twelve comments
 
 **The problem.** `coderabbitai` left a dozen notes on your PR. Answering them means a browser tab, twelve text boxes, and a lot of scrolling — and the agent that wrote the code, the one that actually knows whether comment #7 is right, isn't in that browser tab with you.

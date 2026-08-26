@@ -13,7 +13,10 @@ One self-contained HTML file in the OS temp directory. Tailwind and Mermaid from
 		<title>Decision recap — {{work name}}</title>
 		<script src="https://cdn.tailwindcss.com"></script>
 		<script type="module">
-			import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+			// Pin the exact version. `mermaid@11` is a range: it resolves to whatever
+      // 11.x shipped this morning — the same mutability problem as a :latest
+      // docker tag. Bump it deliberately, not by accident.
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.esm.min.mjs";
 			mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "strict" });
 		</script>
 		<style>
@@ -40,6 +43,16 @@ One self-contained HTML file in the OS temp directory. Tailwind and Mermaid from
 
 </html>
 ```
+
+## What the page loads from the network
+
+The report is self-contained in the sense that it is one file you can move around — not in the sense that it runs alone. It executes two remote scripts on open: Tailwind from `cdn.tailwindcss.com`, and Mermaid from jsDelivr. Say so plainly when you hand the file over, because three things follow and the reader should know all three:
+
+- **Opening the report tells those CDNs you opened it** — your IP, the time. The report's contents never leave, but the fetch itself is a signal.
+- **Offline, the page renders unstyled and the diagrams do not draw.** The prose and the evidence survive; the design does not.
+- **A compromised CDN runs its code in your browser with a local-file origin.** Pinning Mermaid to an exact version bounds this, since a pinned file on jsDelivr is immutable. Tailwind's CDN URL carries no version at all, so it is always whatever shipped today.
+
+When any of that is unacceptable — a report about a client's private repo, a machine with no egress, a reviewer who will not run remote script — write the page with plain inline `<style>` and hand-built SVG instead. Every diagram pattern below except the Mermaid ones already works that way, and the report loses its styling, not its argument.
 
 ## Escaping ingested text
 

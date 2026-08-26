@@ -34,12 +34,15 @@ inside the container.
 
 Environment variables:
     PDFMD_IMAGE      image to use        (default adeuxy/markitdown:latest)
+                     pin it: PDFMD_IMAGE=adeuxy/markitdown@sha256:... (`doctor` prints the digest)
+    PDFMD_NETWORK    1 = give the container a network (default: none)
     PDFMD_OUT        output directory    (default <system temp>/pdfmd)
     PDFMD_PLATFORM   force --platform    (default: auto)
 """
 import os
 import platform
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -90,12 +93,18 @@ def dock(py_args, pdf=None):
     Mounts the PDF's directory at /pdf (read-only), the current directory at
     /work and the output directory at /out. It never contacts a registry, so it
     never needs Docker credentials.
+
+    The container runs with no network. Converting a local file does not need
+    one, and the image is a third-party build: without a network it cannot send
+    your document anywhere, whatever it contains. Set PDFMD_NETWORK=1 to allow
+    one back if you hit a format that genuinely needs to fetch something.
     """
     os.makedirs(OUT, exist_ok=True)
     mounts = ["-v", "%s:%s" % (os.getcwd(), C_WORK), "-v", "%s:%s" % (OUT, C_OUT)]
     if pdf:
         mounts += ["-v", "%s:%s:ro" % (os.path.dirname(os.path.abspath(pdf)), C_PDF_DIR)]
-    cmd = (["docker", "run", "--rm"] + platform_args() + user_args() + mounts +
+    net = [] if os.environ.get("PDFMD_NETWORK") == "1" else ["--network", "none"]
+    cmd = (["docker", "run", "--rm"] + net + platform_args() + user_args() + mounts +
            ["-w", C_WORK, "--entrypoint", "python", IMAGE] + py_args)
     r = sh(cmd)
     if r.returncode:
@@ -158,6 +167,16 @@ def cmd_doctor(args):
         sys.exit("image %s not found locally\nPull it yourself, from your own "
                  "terminal:\n    docker pull %s" % (IMAGE, IMAGE))
     print("image %s present" % IMAGE)
+    d = sh(["docker", "image", "inspect", IMAGE, "--format", "{{index .RepoDigests 0}}"],
+           capture_output=True, text=True)
+    if d.returncode == 0 and d.stdout.strip():
+        print("digest %s" % d.stdout.strip())
+        if ":latest" in IMAGE:
+            print("  `latest` is mutable — this image can change under you. To pin it:\n"
+                  "    export PDFMD_IMAGE=%s" % d.stdout.strip())
+    print("network none (set PDFMD_NETWORK=1 to allow one)"
+          if os.environ.get("PDFMD_NETWORK") != "1" else
+          "network ENABLED via PDFMD_NETWORK=1")
     dock(["-c", "import sys, markitdown, pdfplumber, pypdfium2, PIL;"
                 " print('python', sys.version.split()[0]);"
                 " print('pdfplumber', pdfplumber.__version__);"
@@ -211,6 +230,12 @@ def cmd_md(args):
     dock(["-c", "from markitdown import MarkItDown;"
                 "open(%r,'w').write(MarkItDown().convert(%r).text_content)"
                 % ("%s/%s" % (C_OUT, os.path.basename(dest)), c_pdf(pdf))], pdf=pdf)
+    # The container can only write to /out, so -o has to be honoured here on the
+    # host. Without this the path printed below is not where the file is.
+    produced = os.path.join(OUT, os.path.basename(dest))
+    if os.path.abspath(produced) != os.path.abspath(dest):
+        os.makedirs(os.path.dirname(dest) or ".", exist_ok=True)
+        shutil.move(produced, dest)
     print(dest)
 
 

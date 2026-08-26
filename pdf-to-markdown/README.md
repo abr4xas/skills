@@ -16,6 +16,13 @@ You also need Docker running and the image already local — the driver never pu
 docker pull adeuxy/markitdown:latest
 ```
 
+The container runs with **no network**: converting a local file never needed
+one, and this image is a third-party fork of markitdown on a mutable `latest`
+tag, so cutting its egress is cheap insurance. `PDFMD_NETWORK=1` gives it a
+network back if you ever hit a format that needs to fetch something. `doctor`
+prints the digest that `latest` resolves to right now, plus the one-line export
+that freezes it — worth pinning if you convert anything you would not publish.
+
 ## First run
 
 ```bash
