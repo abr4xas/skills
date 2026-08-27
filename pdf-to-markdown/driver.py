@@ -6,7 +6,17 @@ ships markitdown, pdfplumber, pypdfium2, pdfminer and PIL). NOTHING is installed
 on the host. This driver itself is standard library only, so any Python 3
 interpreter runs it:
 
-    python3 driver.py <command> <PDF> [options]
+    python3 /absolute/path/to/driver.py <command> <PDF> [options]
+
+The skill stays where it is installed and the working directory is yours: it is
+the OUTPUT directory of the extraction, and nothing else. Four mounts, so every
+path in a command resolves to exactly one of them:
+
+    /skill      this skill, read-only     wherever it is installed
+    /templates  PDFMD_TEMPLATES, read-only   your own templates, if you keep any
+    /pdf        the PDF's directory, read-only
+    /work       the current directory     your project: extractor in, output out
+    /out        PDFMD_OUT                 generated files
 
 Diagnose (before converting anything):
     doctor                        is Docker up and the image present?
@@ -22,11 +32,13 @@ Convert:
     md PDF [-o OUTPUT]            markitdown conversion (baseline, no tuning)
     run SCRIPT [args...]          run YOUR extractor inside the container
     split MD DEST [--level N]     split one .md into a per-chapter tree
+    templates                     list the templates available to copy
     where PDF "text"              which page(s) contain that text
 
 Validate (host side, no Docker):
     check DIR                     links, anchors and structure of a Markdown tree
     diff DIR_A DIR_B              compare two generated trees
+    missing OUT.md BASELINE.md    WHICH text of the baseline is absent from OUT
 
 Page indices are ZERO-BASED and ranges are INCLUSIVE: index 12 is the 13th page
 of the document. Commands starting with '_' are internal: this same file running
@@ -36,6 +48,7 @@ Environment variables:
     PDFMD_IMAGE      image to use        (default adeuxy/markitdown:latest)
                      pin it: PDFMD_IMAGE=adeuxy/markitdown@sha256:... (`doctor` prints the digest)
     PDFMD_NETWORK    1 = give the container a network (default: none)
+    PDFMD_TEMPLATES  YOUR templates      (default: none; see `templates`)
     PDFMD_OUT        output directory    (default <system temp>/pdfmd)
     PDFMD_PLATFORM   force --platform    (default: auto)
 """
@@ -59,6 +72,19 @@ _ARM = platform.machine().lower() in ("arm64", "aarch64")
 PLATFORM = os.environ.get("PDFMD_PLATFORM", "linux/amd64" if _ARM else "")
 
 C_PDF_DIR, C_WORK, C_OUT = "/pdf", "/work", "/out"
+C_SKILL, C_TEMPLATES = "/skill", "/templates"
+
+# Where this driver and its templates live. Mounted read-only at /skill, so the
+# skill can stay wherever it is installed and the working directory is free to
+# be the user's project - which is the only thing it should ever have to be.
+SKILL_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Your own templates, if you keep any: a directory OUTSIDE the skill, so an
+# update of the skill cannot touch it, and in one fixed place, so it serves
+# every document you convert instead of one project. There is no registry file
+# to maintain - `templates` lists whatever is in here.
+TEMPLATES = os.environ.get("PDFMD_TEMPLATES")
+TEMPLATES = os.path.abspath(TEMPLATES) if TEMPLATES else None
 
 
 def sh(cmd, **kw):
@@ -90,9 +116,10 @@ def to_container(path, host_root, container_root):
 def dock(py_args, pdf=None):
     """Run `python <py_args>` inside the container.
 
-    Mounts the PDF's directory at /pdf (read-only), the current directory at
-    /work and the output directory at /out. It never contacts a registry, so it
-    never needs Docker credentials.
+    Mounts the PDF's directory at /pdf (read-only), this skill's own directory
+    at /skill (read-only), the current directory at /work and the output
+    directory at /out. It never contacts a registry, so it never needs Docker
+    credentials.
 
     The container runs with no network. Converting a local file does not need
     one, and the image is a third-party build: without a network it cannot send
@@ -100,7 +127,10 @@ def dock(py_args, pdf=None):
     one back if you hit a format that genuinely needs to fetch something.
     """
     os.makedirs(OUT, exist_ok=True)
-    mounts = ["-v", "%s:%s" % (os.getcwd(), C_WORK), "-v", "%s:%s" % (OUT, C_OUT)]
+    mounts = ["-v", "%s:%s" % (os.getcwd(), C_WORK), "-v", "%s:%s" % (OUT, C_OUT),
+              "-v", "%s:%s:ro" % (SKILL_DIR, C_SKILL)]
+    if TEMPLATES and os.path.isdir(TEMPLATES):
+        mounts += ["-v", "%s:%s:ro" % (TEMPLATES, C_TEMPLATES)]
     if pdf:
         mounts += ["-v", "%s:%s:ro" % (os.path.dirname(os.path.abspath(pdf)), C_PDF_DIR)]
     net = [] if os.environ.get("PDFMD_NETWORK") == "1" else ["--network", "none"]
@@ -117,12 +147,16 @@ def c_pdf(pdf):
     return "%s/%s" % (C_PDF_DIR, os.path.basename(os.path.abspath(pdf)))
 
 
-def need_self_mounted():
-    here = os.path.abspath(__file__)
-    if not here.startswith(os.getcwd() + os.sep):
-        sys.exit("run the driver from a directory that contains it\n"
-                 "(the container mounts the current directory at /work)")
-    return to_container(here, os.getcwd(), C_WORK)
+def self_in_container():
+    """This driver as seen inside the container.
+
+    The diagnostic commands run this same file inside the image, so it has to be
+    reachable from in there. It used to get there by riding the /work mount,
+    which forced the working directory to contain the skill - so a skill living
+    in ~/.claude/skills/ had to be copied into every project first. /skill is
+    its own mount now: install the skill anywhere, run from anywhere.
+    """
+    return "%s/%s" % (C_SKILL, os.path.basename(os.path.abspath(__file__)))
 
 
 def slugify(text):
@@ -184,31 +218,31 @@ def cmd_doctor(args):
 
 
 def cmd_info(args):
-    dock([need_self_mounted(), "_info", c_pdf(args[0])], pdf=args[0])
+    dock([self_in_container(), "_info", c_pdf(args[0])], pdf=args[0])
 
 
 def cmd_fonts(args):
     first, last = rng(args[1:], default=(0, 4))
-    dock([need_self_mounted(), "_fonts", c_pdf(args[0]), str(first), str(last)],
+    dock([self_in_container(), "_fonts", c_pdf(args[0]), str(first), str(last)],
          pdf=args[0])
 
 
 def cmd_columns(args):
     first, last = rng(args[1:])
-    dock([need_self_mounted(), "_columns", c_pdf(args[0]), str(first), str(last)],
+    dock([self_in_container(), "_columns", c_pdf(args[0]), str(first), str(last)],
          pdf=args[0])
 
 
 def cmd_repeats(args):
     first, last = rng(args[1:], default=(0, 19))
-    dock([need_self_mounted(), "_repeats", c_pdf(args[0]), str(first), str(last)],
+    dock([self_in_container(), "_repeats", c_pdf(args[0]), str(first), str(last)],
          pdf=args[0])
 
 
 def cmd_page(args):
     first, last = rng(args[1:])
     extra = ["--tables"] if "--tables" in args else []
-    dock([need_self_mounted(), "_page", c_pdf(args[0]), str(first), str(last)] + extra,
+    dock([self_in_container(), "_page", c_pdf(args[0]), str(first), str(last)] + extra,
          pdf=args[0])
     suffix = "-tables" if extra else ""
     for i in range(first, last + 1):
@@ -218,7 +252,7 @@ def cmd_page(args):
 def cmd_text(args):
     first, last = rng(args[1:])
     extra = ["--layout"] if "--layout" in args else []
-    dock([need_self_mounted(), "_text", c_pdf(args[0]), str(first), str(last)] + extra,
+    dock([self_in_container(), "_text", c_pdf(args[0]), str(first), str(last)] + extra,
          pdf=args[0])
 
 
@@ -256,9 +290,21 @@ def cmd_run(args):
         sys.exit("no such script: %s" % script)
 
     passthru = []
+    want_out = False
     for a in rest[1:]:
         ap = os.path.abspath(a)
         looks_like_path = os.sep in a or "/" in a or os.path.exists(ap)
+        # A bare relative -o ("-o out.md") is not recognisable as a path, so it
+        # used to pass straight through and land in the cwd - everywhere except
+        # where PDFMD_OUT says every other command writes. Resolve it here, the
+        # way `md` does, so `run` and `md` agree on where output goes.
+        if want_out and not a.startswith("-") and not looks_like_path:
+            want_out = False
+            os.makedirs(OUT, exist_ok=True)
+            passthru.append("%s/%s" % (C_OUT, a))
+            print("-o %s -> %s" % (a, os.path.join(OUT, a)))
+            continue
+        want_out = a in ("-o", "--out")
         if a.startswith("-") or not looks_like_path:      # flags and bare values
             passthru.append(a)
         elif ap.startswith(OUT + os.sep):                 # outputs -> /out
@@ -268,7 +314,19 @@ def cmd_run(args):
         else:
             passthru.append(a)
 
-    cont = [to_container(script, os.getcwd(), C_WORK)]
+    ap_script = os.path.abspath(script)
+    if ap_script.startswith(os.getcwd() + os.sep):
+        cont = [to_container(ap_script, os.getcwd(), C_WORK)]
+    elif TEMPLATES and ap_script.startswith(TEMPLATES + os.sep):
+        cont = [to_container(ap_script, TEMPLATES, C_TEMPLATES)]
+    else:
+        # to_container would otherwise rewrite the path into something that does
+        # not exist inside the container, and the failure would come back as a
+        # python traceback about a missing file instead of as this.
+        sys.exit("%s is outside both the current directory and PDFMD_TEMPLATES,\n"
+                 "so the container cannot see it. Copy it next to your PDF "
+                 "first -\nwhich is what you want anyway: every constant in it "
+                 "has to be\nre-measured for this document." % script)
     if pdf:
         cont.append(c_pdf(pdf))
     dock(cont + passthru, pdf=pdf)
@@ -283,7 +341,7 @@ def cmd_layout(args):
     indents. Feed those numbers into your extractor as named constants.
     """
     first, last = rng(args[1:])
-    dock([need_self_mounted(), "_layout", c_pdf(args[0]), str(first), str(last)],
+    dock([self_in_container(), "_layout", c_pdf(args[0]), str(first), str(last)],
          pdf=args[0])
 
 
@@ -291,8 +349,7 @@ def cmd_split(args):
     """Split a Markdown file into a per-chapter tree (templates/split_by_headings.py)."""
     if len(args) < 2:
         sys.exit("usage: split MARKDOWN DEST [--level N] [--title T] [--force]")
-    script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                          "templates", "split_by_headings.py")
+    script = os.path.join(SKILL_DIR, "templates", "split_by_headings.py")
     if not os.path.exists(script):
         sys.exit("missing %s" % script)
     passthru = []
@@ -306,7 +363,7 @@ def cmd_split(args):
             passthru.append(to_container(ap, os.getcwd(), C_WORK))
         else:
             passthru.append(a)
-    dock([to_container(script, os.getcwd(), C_WORK)] + passthru)
+    dock(["%s/templates/%s" % (C_SKILL, os.path.basename(script))] + passthru)
 
 
 def cmd_where(args):
@@ -320,7 +377,7 @@ def cmd_where(args):
     key = re.sub(r"[^a-z0-9]+", "-", os.path.basename(pdf).lower()).strip("-")
     index = os.path.join(OUT, "index-%s.txt" % key)
     if not os.path.exists(index) or os.path.getmtime(index) < os.path.getmtime(pdf):
-        dock([need_self_mounted(), "_index", c_pdf(pdf),
+        dock([self_in_container(), "_index", c_pdf(pdf),
               "%s/%s" % (C_OUT, os.path.basename(index))], pdf=pdf)
 
     target = re.sub(r"\s+", " ", needle).lower()
@@ -368,6 +425,44 @@ def cmd__info(args):
         if not (p.lines or []):
             print("-> no vector lines: tables (if any) are unruled, so a "
                   "line-based table finder will not see them")
+
+        # Ragged-right or justified. This decides what an end-of-line hyphen
+        # means, and getting it backwards is silent: justified text is
+        # auto-hyphenated so "exam- ple" must close up to "example", while
+        # ragged-right text is not, so closing up "line- height" yields
+        # "lineheight" and no word count will ever notice.
+        flush, total = 0, 0
+        for i in sample:
+            page = pdf.pages[i]
+            words = page.extract_words() or []
+            if len(words) < 25:
+                continue
+            rows = {}
+            for w in words:
+                rows.setdefault(round(w["bottom"] / 3), []).append(w)
+            ends = sorted(max(w["x1"] for w in r) for r in rows.values()
+                          if len(r) > 3)
+            if len(ends) < 4:
+                continue
+            # in justified text every line but the last of a paragraph ends at
+            # the same x, so the right edges pile up on one value
+            right = ends[-1]
+            flush += sum(1 for e in ends if right - e < 2.0)
+            total += len(ends)
+        if total:
+            share = flush / total
+            if share > 0.6:
+                print("text is JUSTIFIED (%.0f%% of lines end flush right)"
+                      % (share * 100))
+                print("-> line-end hyphens are syllable breaks: de-hyphenate "
+                      "(DEHYPHENATE = r\"\\1\\2\")")
+            else:
+                print("text is RAGGED-RIGHT (%.0f%% of lines end flush right)"
+                      % (share * 100))
+                print("-> no automatic hyphenation, so a line-end hyphen is "
+                      "part of the word:\n   KEEP it (DEHYPHENATE = "
+                      "r\"\\1-\\2\"). Closing it up turns \"line-height\" "
+                      "into \"lineheight\".")
 
 
 def cmd__fonts(args):
@@ -433,6 +528,8 @@ def cmd__repeats(args):
     from collections import defaultdict
     first, last = int(args[1]), int(args[2])
     by_text = defaultdict(list)
+    by_band = defaultdict(set)
+    sizes_at = defaultdict(list)
     with pdfplumber.open(args[0]) as pdf:
         last = min(last, len(pdf.pages) - 1)
         n = last - first + 1
@@ -440,7 +537,7 @@ def cmd__repeats(args):
             page = pdf.pages[i]
             height = page.height
             lines = defaultdict(list)
-            for w in page.extract_words() or []:
+            for w in page.extract_words(extra_attrs=["size"]) or []:
                 lines[round(w["top"] / 3)].append(w)
             for group in lines.values():
                 y = min(w["top"] for w in group)
@@ -451,6 +548,13 @@ def cmd__repeats(args):
                 key = re.sub(r"\d+", "#", text).strip()   # page numbers vary
                 if key:
                     by_text[key].append((i, round(y)))
+                # Also record the line by POSITION alone. A header whose text
+                # changes every chapter ("23 Choose a personality" ->
+                # "31 Use fewer borders") never repeats as text, no matter how
+                # the digits are normalised, so the text pass below reports
+                # nothing on a perfectly ordinary book. The band is still there.
+                by_band[round(y / 3)].add(i)
+                sizes_at[round(y / 3)] += [round(w["size"], 1) for w in group]
     print("lines repeated in the margins across %d pages:" % n)
     found = False
     for key, occ in sorted(by_text.items(), key=lambda kv: -len(kv[1])):
@@ -461,12 +565,30 @@ def cmd__repeats(args):
         print("  %3d/%d pages  y=%s  %r"
               % (len(occ), n, ys[0] if len(ys) == 1 else "%d-%d" % (ys[0], ys[-1]),
                  key[:60]))
-    if not found:
-        print("  (none)")
-    else:
+    if found:
         print("\n-> these are running headers/footers. Drop them by vertical "
               "position (y\n   outside the body), or they land in the middle of "
               "your text.")
+        return
+
+    print("  (none repeated verbatim)")
+    bands = [(band, pages) for band, pages in by_band.items()
+             if len(pages) >= max(3, n * 0.5)]
+    if not bands:
+        print("\n-> and nothing sits in the margins on most pages either: this "
+              "document\n   has no running header or footer to filter.")
+        return
+    print("\nBut a line DOES sit in the margin on most pages, so there is a "
+          "header band\nwhose text simply changes from chapter to chapter:")
+    for band, pages in sorted(bands, key=lambda kv: -len(kv[1])):
+        sizes = sizes_at[band]
+        common = max(set(sizes), key=sizes.count)
+        print("  %3d/%d pages  y=%d  most common size %.1fpt"
+              % (len(pages), n, band * 3, common))
+    print("\n-> filter it by FONT SIZE if the band is set smaller than the body "
+          "(`fonts`\n   shows both), which survives a short page; or by vertical "
+          "position, which\n   is simpler but also eats the first body line when "
+          "a page runs short.")
 
 
 def cmd__layout(args):
@@ -629,6 +751,113 @@ def cmd_check(args):
     sys.exit(0 if check(args[0] if args else ".") else 1)
 
 
+def cmd_templates(args):
+    """List the templates you can copy: the skill's, and your own.
+
+    Each one describes itself - the first line of its docstring is what shows
+    up here - so there is no registry file to keep in sync with the directory.
+    A list that can disagree with the files it lists eventually does.
+    """
+    marks = (chr(34) * 3, chr(39) * 3)
+
+    def describe(path):
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                if line.lstrip().startswith(marks):
+                    return line.strip().strip(chr(34) + chr(39)).strip() or "(untitled)"
+        return "(no docstring)"
+
+    def listing(label, folder, note):
+        print("%s  %s" % (label, folder))
+        names = sorted(n for n in os.listdir(folder) if n.endswith(".py"))
+        if not names:
+            print("  (empty)")
+        for n in names:
+            print("  %-26s %s" % (n, describe(os.path.join(folder, n))))
+        if note:
+            print("  %s" % note)
+        print("")
+
+    listing("SHIPPED WITH THE SKILL", os.path.join(SKILL_DIR, "templates"),
+            "read-only: a template promoted here belongs in a commit to the "
+            "skill's repo")
+
+    if TEMPLATES and os.path.isdir(TEMPLATES):
+        listing("YOURS (PDFMD_TEMPLATES)", TEMPLATES, None)
+    elif TEMPLATES:
+        print("YOURS (PDFMD_TEMPLATES)  %s\n  set, but does not exist yet\n"
+              % TEMPLATES)
+    else:
+        print("YOURS (PDFMD_TEMPLATES)  unset\n"
+              "  Point it at a directory of your own, outside the skill, to keep\n"
+              "  templates that survive a skill update and serve every document\n"
+              "  you convert:  export PDFMD_TEMPLATES=~/pdfmd-templates\n")
+
+    print("-> copy the closest one next to your PDF and calibrate it. Every "
+          "constant in a\n   template is the previous document's measurement, "
+          "never yours.")
+
+
+def cmd_missing(args):
+    """Which text of the baseline is absent from your output.
+
+    `wc -w` answers "how many words apart", which is the wrong question: it
+    counts leader dots and running headers you dropped on purpose, so a
+    perfectly complete extraction can read as a two-thousand-word shortfall and
+    send you hunting a bug that is not there. This answers WHICH text is gone,
+    and the value is in reading the misses, not counting them - misses that all
+    carry a running header prove the loss is the header, not the prose.
+    """
+    if len(args) < 2:
+        sys.exit("usage: missing OUT.md BASELINE.md")
+    out, baseline = args[0], args[1]
+
+    def normalize(text):
+        text = re.sub(r"(?:\s*[.\u2026]){3,}", " ", text)   # table-of-contents leaders
+        text = re.sub(r"[*_`#>\[\]()|-]", " ", text)        # markdown punctuation
+        text = re.sub(r"[\u2018\u2019]", "'", text)
+        text = re.sub(r"[\u201c\u201d]", '"', text)
+        return re.sub(r"\s+", " ", text).lower()
+
+    span = 6
+    hay = normalize(open(baseline, encoding="utf-8").read())
+    have = normalize(open(out, encoding="utf-8").read())
+    words = hay.split()
+    misses, reflowed, total = [], 0, 0
+    for i in range(0, len(words) - span, span):
+        total += 1
+        phrase = " ".join(words[i:i + span])
+        if phrase in have:
+            continue
+        # A window straddling a block boundary misses whenever the two sides
+        # were rejoined differently - a paragraph split where the baseline ran
+        # it together, a bullet lifted out of the flow. Both halves are still
+        # there, so this is reflow, not loss, and counting it drowns the real
+        # misses. Only the halves being gone means text is gone.
+        half = span // 2
+        if (" ".join(words[i:i + half]) in have
+                and " ".join(words[i + half:i + span]) in have):
+            reflowed += 1
+            continue
+        misses.append(phrase)
+    print("%d of %d %d-word phrases of the baseline are absent from %s"
+          % (len(misses), total, span, out))
+    if reflowed:
+        print("(%d more matched only in halves: reflow across a block boundary, "
+              "not loss)" % reflowed)
+    if not misses:
+        print("-> nothing was lost; any word-count gap is punctuation you "
+              "dropped on purpose")
+        return
+    for m in misses[:40]:
+        print("  %s" % m)
+    if len(misses) > 40:
+        print("  ... (+%d more, not shown)" % (len(misses) - 40))
+    print("\n-> READ these. A miss that carries a running header or a run of "
+          "leader dots is\n   text you dropped deliberately. A miss that is "
+          "plain prose is real loss.")
+
+
 def cmd_diff(args):
     a, b = args[0], args[1]
     r = subprocess.run(["diff", "-ru", a, b], capture_output=True, text=True)
@@ -645,7 +874,8 @@ def cmd_diff(args):
 CMDS = {"doctor": cmd_doctor, "info": cmd_info, "fonts": cmd_fonts,
         "columns": cmd_columns, "repeats": cmd_repeats, "page": cmd_page,
         "text": cmd_text, "layout": cmd_layout, "split": cmd_split, "md": cmd_md, "run": cmd_run, "where": cmd_where,
-        "check": cmd_check, "diff": cmd_diff,
+        "check": cmd_check, "diff": cmd_diff, "missing": cmd_missing,
+        "templates": cmd_templates,
         "_info": cmd__info, "_fonts": cmd__fonts, "_columns": cmd__columns,
         "_repeats": cmd__repeats, "_layout": cmd__layout, "_page": cmd__page, "_text": cmd__text,
         "_index": cmd__index}

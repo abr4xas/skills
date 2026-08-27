@@ -4,7 +4,7 @@ What happens after extraction: one file per chapter, link validation, and the
 regression diff. Extraction symptoms are in [`RECIPES.md`](RECIPES.md).
 
 ```bash
-D=.claude/skills/pdf-to-markdown/driver.py
+D="/absolute/path/to/the/skill/driver.py"
 ```
 
 ## 13. I want one file per chapter instead of one huge Markdown
@@ -34,6 +34,13 @@ Notes that matter:
 - **`--level` cuts at that level and every level above it.** Splitting a book at
   `--level 2` also cuts at its `#` part titles; otherwise a `# Part One` ends up
   buried inside the previous chapter's file.
+- **A part title printed alone on its own page keeps its section**, empty body
+  and all. That is what a part title *is* in most books, and dropping it loses
+  the title with the run still reporting success.
+- **`--folder-min-blocks` defaults to 60**, the magnitude that separates a whole
+  part (70–150 blocks in a prose book) from a chapter (10–40). Raise it if you
+  want a flat tree; the folder layout above simply never triggers if you set it
+  above the size of your largest section.
 - It **refuses to overwrite** a non-empty destination (`pass --force to replace
   it`) — generated trees get regenerated, so this is the guard against wiping
   hand-written files.

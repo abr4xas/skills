@@ -70,7 +70,12 @@ def split_sections(blocks, level, preamble_label):
         else:
             current[1].append(b)
     sections.append(current)
-    return [s for s in sections if s[1]]
+    # Keep a section that has a title but no blocks: a part title printed alone
+    # on its own page is exactly that, and it is a universal book pattern.
+    # Dropping it loses the title silently - the run still reports success.
+    # The preamble is different: an empty one means the file simply starts with
+    # a heading, and there is nothing to keep.
+    return [s for s in sections if s[1] or s[0] != preamble_label]
 
 
 def write_folder(dest, folder, label, body, level, args):
@@ -127,7 +132,12 @@ def main():
     ap.add_argument("--contents-label", default="Contents of this section")
     ap.add_argument("--index-name", default="README.md")
     ap.add_argument("--back-arrow", default="←")
-    ap.add_argument("--folder-min-blocks", type=int, default=800)
+    # A section becomes a folder when it is big enough to be worth exploding.
+    # Magnitude: a chapter of a prose book runs 10-40 blocks and a whole part
+    # runs 70-150, so 60 puts parts in folders and leaves chapters as files.
+    # The old default of 800 is a whole book, so the folder layout below never
+    # actually triggered.
+    ap.add_argument("--folder-min-blocks", type=int, default=60)
     ap.add_argument("--folder-min-subsections", type=int, default=3)
     ap.add_argument("--toc-preview", type=int, default=12,
                     help="subsections listed per section in the index")

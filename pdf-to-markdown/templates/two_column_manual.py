@@ -18,6 +18,7 @@ and each has a driver command that prints yours:
     columns PDF 12 13   the column gutter        -> GUTTER_LO / GUTTER_HI
     fonts   PDF 12 16   families and sizes       -> DISPLAY_FAMILY, BODY_SIZE, HEADING_SIZES
     repeats PDF 0 40    running header/footer    -> TOP_MARGIN / BOTTOM_MARGIN
+    info    PDF         ragged-right or justified -> DEHYPHENATE
     layout  PDF 14      leading and indents      -> LINE_TOL, CELL_GAP
 
 KNOWN SIMPLIFICATIONS. Measured against the full 1000-line extractor this was
@@ -60,6 +61,13 @@ MIN_TABLE_ROWS = 3      # fewer aligned rows than this is prose, not a table
 PARA_GAP = 10.0         # measured: 4.7 inside a paragraph, 16.8 between them
                         # (read it off `driver.py layout PDF <page>`)
 BULLETS = ("•", "●", "▪", "–")
+
+# An end-of-line hyphen means opposite things in the two ways text is set, and
+# `info` reports which one this PDF is. Justified text is auto-hyphenated, so
+# "exam- ple" is a syllable break and the hyphen goes. Ragged-right text is not,
+# so the hyphen belongs to the word ("line-height" wrapping after "line-") and
+# closing it up silently yields "lineheight".
+DEHYPHENATE = r"\1\2"      # justified, like this manual. Ragged-right? r"\1-\2".
 
 
 def font_of(word):
@@ -292,7 +300,7 @@ def to_markdown(pdf, first, last):
     for b in blocks:
         b = re.sub(r"\*\*(\s+)\*\*", r"\1", b)             # heal emphasis split
         b = re.sub(r"(?<!\*)\*(\s+)\*(?!\*)", r"\1", b)    # across line breaks
-        out.append(re.sub(r"(\w)- (\w)", r"\1\2", b))      # de-hyphenate
+        out.append(re.sub(r"(\w)- (\w)", DEHYPHENATE, b))   # see DEHYPHENATE
     return out
 
 

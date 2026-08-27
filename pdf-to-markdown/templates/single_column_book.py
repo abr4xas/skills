@@ -23,6 +23,11 @@ TECHNIQUES WORTH KEEPING (they are document-independent):
   * paragraph breaks from measured vertical gaps + first-line indent
   * emphasis runs healed across line breaks (join)
   * lines set in the display family at body size are prompts/captions, not prose
+  * a page break is not a paragraph break: fall back to punctuation (continues)
+
+SET HEAD_FAMILY = None if the book uses ONE type family and builds its hierarchy
+from size and weight alone. The display-family test cannot fire there, and
+without this every heading comes out as body text.
 """
 import argparse
 import re
@@ -32,8 +37,18 @@ import pdfplumber
 # font size -> markdown heading level, for the AvenirNextCondensed display family
 HEADING_SIZES = [(50, 1), (34, 1), (24, 2), (18, 2), (11.5, 3)]
 
-HEAD_FAMILY = "AvenirNextCondensed"
+HEAD_FAMILY = "AvenirNextCondensed"   # None = one type family, see classify()
 BODY_FAMILY = "MinionPro"
+
+# An end-of-line hyphen means opposite things in the two ways text is set, and
+# no rule covers both — `info` reports which one this PDF is.
+#   justified    -> lines are auto-hyphenated, so "exam- ple" is a syllable
+#                   break and the hyphen must go: r"\1\2"
+#   ragged-right -> no automatic hyphenation, so every end-of-line hyphen
+#                   belongs to the word ("line-height" wrapping after "line-")
+#                   and must be kept: r"\1-\2". Removing it yields "lineheight",
+#                   which no word count and no completeness check will catch.
+DEHYPHENATE = r"\1\2"      # justified, like this book. Ragged-right? r"\1-\2".
 
 TOP_MARGIN = 0.075      # everything above this fraction is the running header
 BOTTOM_MARGIN = 0.94    # everything below is the page number / footer
@@ -113,11 +128,26 @@ def classify(words):
         sizes[round(w["size"], 1)] = sizes.get(round(w["size"], 1), 0) + len(w["text"])
     size = max(sizes, key=sizes.get)
     fonts = [font_of(w) for w in words]
-    display = sum(1 for f in fonts if HEAD_FAMILY in f) > len(fonts) / 2
 
     text = render_line(words)
     if not text.strip():
         return None
+
+    # Two type families, one for display and one for body, is the usual book
+    # setting but not the only one: plenty of modern books set everything in a
+    # single family and build the hierarchy out of size and weight alone. There
+    # the display test can never fire, so HEAD_FAMILY = None means "classify by
+    # size only" and the display-family branches below (toc, label, prompt) do
+    # not apply - there is no second family to recognise them by.
+    if HEAD_FAMILY is None:
+        level = heading_level(size)
+        if level:
+            # a heading is all one weight, so the markers render_line added
+            # only clutter the outline
+            return ("heading", level, re.sub(r"\*+", "", text))
+        display = False
+    else:
+        display = sum(1 for f in fonts if HEAD_FAMILY in f) > len(fonts) / 2
 
     if display:
         level = heading_level(size)
@@ -150,6 +180,13 @@ def classify(words):
         return ("prompt", 0, text, words[0]["x0"], italic)
 
     return ("body", 0, text, words[0]["x0"])
+
+
+def continues(block):
+    """Does this block end mid-sentence, i.e. is the next line a continuation?"""
+    if block.startswith(("#", "- ", "*")):      # headings, bullets, prompts
+        return False
+    return not re.search(r"[.!?:;\u201d\u2019)]\**\s*$", block)
 
 
 def join(previous, addition):
@@ -243,6 +280,20 @@ def to_markdown(pdf, first, last):
             if starts_paragraph:
                 bullet_x = None
 
+            # gap is None on the first line of a page - correctly, gaps do not
+            # cross a page break - which leaves the indent test as the only
+            # signal. A book that separates paragraphs with vertical space
+            # instead of an indent never trips it, so every page boundary would
+            # weld two paragraphs together. Fall back to punctuation, which
+            # reads the same with an indent and without one.
+            if gap is None and blocks and not starts_paragraph:
+                if continues(blocks[-1]):
+                    blocks[-1] = join(blocks[-1], text)
+                else:
+                    blocks.append(text.strip())
+                    bullet_x = None
+                continue
+
             joinable = (blocks and not blocks[-1].startswith(("#", "- "))
                         and not starts_paragraph)
             if joinable:
@@ -250,8 +301,8 @@ def to_markdown(pdf, first, last):
             else:
                 blocks.append(text.strip())
 
-    # a hyphen at end of line is a word split across lines
-    return [re.sub(r"(\w)- (\w)", r"\1\2", b) for b in blocks]
+    # a hyphen at end of line: kept or closed up, see DEHYPHENATE
+    return [re.sub(r"(\w)- (\w)", DEHYPHENATE, b) for b in blocks]
 
 
 def main():

@@ -4,10 +4,11 @@ Extraction symptoms. Recipes 13–15 (splitting, link checking, regression diffs
 are in [`SPLITTING.md`](SPLITTING.md); the verification checks are in
 [`SKILL.md`](SKILL.md).
 
-Every command assumes the two variables `SKILL.md` sets up:
+Every command assumes the two variables `SKILL.md` sets up — the driver by
+absolute path, because the working directory is the document's, not the skill's:
 
 ```bash
-D=.claude/skills/pdf-to-markdown/driver.py
+D="/absolute/path/to/the/skill/driver.py"
 PDF="path/to/your.pdf"
 ```
 
@@ -59,6 +60,11 @@ Note also:
 
 - the **family** separates display from body (Avenir vs Minion here) — filter on
   the font name, not on size alone, or a 12pt heading and 11pt body will blur;
+- **unless there is only one family.** Plenty of books set everything in, say,
+  `GraphikApp` and build the hierarchy out of size and weight alone. `fonts`
+  shows it at a glance: one family, several sizes. There the family filter can
+  never fire, and left in place it puts every heading back into the body text —
+  set `HEAD_FAMILY = None` in `single_column_book.py` to classify by size only;
 - **italic/bold at body size** is inline emphasis → `*...*` / `**...**`;
 - a size **smaller** than body is usually a note or caption → `>` blockquote.
 
@@ -85,10 +91,70 @@ lines repeated in the margins across 87 pages:
 Digits are normalized to `#`, so "Chapter 3 · 47" groups with "Chapter 3 · 48".
 35 of 87 rather than all is normal — books alternate headers recto/verso.
 
-**Fix.** Drop them **by vertical position, not by text**: `y` is constant (32).
-Ignore words whose `top` is outside the body band. `(none)` means there is
-nothing to filter. Cut the band conservatively — this is the usual cause of a
-word-count shortfall in the completeness check.
+**When the text pass finds nothing.** Normalizing the digits is not enough when
+the *chapter title* is in the header too — `23 Choose a personality` becomes
+`31 Use fewer borders` at the next chapter, so no single line ever repeats often
+enough. `repeats` says so and falls back to the band:
+
+```
+  (none repeated verbatim)
+
+But a line DOES sit in the margin on most pages, so there is a header band
+whose text simply changes from chapter to chapter:
+   24/41 pages  y=33  most common size 8.0pt
+   21/41 pages  y=75  most common size 10.0pt
+```
+
+Cross-check it with `fonts`, which shows the same band unmistakably: 8.0pt over
+567 characters against a 10.0pt body over 12312. **Only `(none repeated
+verbatim)` *and* no band means there is nothing to filter.**
+
+**Fix.** Drop them **by vertical position, not by text**: whichever pass found
+the header, it reported a constant `y`. Ignore words whose `top` is outside the
+body band. Cut the band conservatively — this is the usual cause of a word-count
+shortfall in the completeness check.
+
+**Filtering by font size is more robust than the band** when the header is set
+smaller than the body, as it usually is:
+
+```python
+words = [w for w in page.extract_words(extra_attrs=["fontname", "size"])
+         if w["size"] > HEADER_SIZE_MAX]      # 9.0 for an 8.0pt header
+```
+
+A margin band is a fixed fraction of the page height, so on a short page — a
+chapter end, a page that is mostly picture — it also eats the first line of the
+body. A size test does not.
+
+## 3b. Hyphenated words come out welded together
+
+```
+line-height   ->   lineheight        <- wrong
+```
+
+**Diagnosis.**
+
+```bash
+python3 $D info "$PDF"
+```
+```
+text is RAGGED-RIGHT (16% of lines end flush right)
+-> no automatic hyphenation, so a line-end hyphen is part of the word:
+   KEEP it (DEHYPHENATE = r"\1-\2"). Closing it up turns "line-height" into "lineheight".
+```
+
+**Fix.** Set the template's `DEHYPHENATE` to match. The two cases need opposite
+rules and no default is right for both:
+
+- **justified** — every line but the last of a paragraph ends flush right, the
+  typesetter hyphenated to make it so, and `exam- ple` is one word split across
+  two lines: `DEHYPHENATE = r"\1\2"`.
+- **ragged-right** — no automatic hyphenation, so every line-end hyphen was
+  typed by the author and belongs to the word: `DEHYPHENATE = r"\1-\2"`.
+
+This one is worth checking even when the output reads fine. The word count does
+not change either way, so the completeness check cannot see it — the only way to
+find it is to read the output or to run `info` first.
 
 ## 4. Tables collapse into paragraphs or bullet lists
 
@@ -152,6 +218,35 @@ python3 $D layout "$PDF" 40
 - `x` 46.8 = the left margin; 64.8 = a **first-line indent**, which starts a new
   paragraph even at normal leading. Books with indented paragraphs have no blank
   lines at all — the indent is the only signal.
+
+**If the breaks are wrong only at page boundaries**, no threshold will fix it:
+there is no gap to measure. Gaps are reset per page — correctly, a gap does not
+span a page break — which leaves the indent test as the only signal, and a book
+that separates paragraphs with vertical space instead of an indent never trips
+it. The last paragraph of every page then welds onto the first of the next.
+
+Fall back to punctuation, which reads the same with an indent and without one:
+
+```python
+def continues(block):
+    """Does this block end mid-sentence, i.e. is the next line a continuation?"""
+    if block.startswith(("#", "- ")):
+        return False
+    return not re.search(r"[.!?:;”’)]\**\s*$", block)
+```
+
+```python
+if gap is None and blocks and not starts_paragraph:
+    if continues(blocks[-1]):
+        blocks[-1] = join(blocks[-1], text)
+    else:
+        blocks.append(text.strip())
+    continue
+```
+
+Check **both** directions before believing it: a paragraph that genuinely runs
+across a page break must still come out as one block. A fix that splits every
+page boundary has traded the bug for its mirror image.
 
 Also note the first row: the running header sits above the body and gets dropped
 by recipe 3.
