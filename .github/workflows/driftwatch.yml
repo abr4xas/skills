@@ -1,0 +1,42 @@
+# Two gates over the same thing: the documents in this repo telling the truth
+# about the repo. driftwatch checks the claims inside them; validate-skills.sh
+# checks that each SKILL.md is still invocable at all.
+name: driftwatch
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: context drift
+    runs-on: ubuntu-latest
+    steps:
+      # Required, not optional detail: driftwatch builds its index with
+      # `git ls-files`, so it needs a real working tree. Shallow is fine.
+      - uses: actions/checkout@v7
+
+      # An exact release, because there is no floating tag to track by design:
+      # you can read which driftwatch this job runs without leaving the file.
+      # Upgrading is editing the tag, the same as any other dependency.
+      #
+      # The action defaults to --format github, so every stale claim lands as an
+      # annotation on the line of the diff that makes it, and fails the job:
+      # this repo is clean today, so a gate costs nothing and keeps it that way.
+      - uses: abr4xas/driftwatch@v0.3.0
+
+  skills:
+    name: skill frontmatter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # driftwatch's own `skill/frontmatter` check only fires on a SKILL.md
+      # under `.claude/skills/`, and these live at the repo root — see the note
+      # in driftwatch.config.yaml. This is the check that covers them here.
+      - run: ./validate-skills.sh

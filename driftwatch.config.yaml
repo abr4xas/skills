@@ -1,0 +1,18 @@
+# driftwatch configuration
+# https://github.com/abr4xas/driftwatch
+#
+# Discovery finds SKILL.md under `.claude/skills/`, and these skills live at the
+# repo root instead — so without this file driftwatch audits nothing here and
+# reports `0 files · no drift`, which is the green run this repo least wants.
+#
+# One pattern covers every document: the SKILL.md files, the reference files
+# they point at, each skill's README and the root README. All of them make
+# claims about paths in this repo.
+#
+# A configured source keeps the checks that read Markdown — path/missing,
+# link/broken, frontmatter/invalid — but not skill/frontmatter, which only
+# fires on a source classified as a skill by its location. `./validate-skills.sh`
+# covers that ground here, and more of it: it validates the whole frontmatter
+# against the Agent Skills spec, not only the fields that make a skill invocable.
+sources:
+  - '**/*.md'
