@@ -21,6 +21,7 @@ Or just the one you want:
 ```bash
 npx skills@latest add abr4xas/skills --skill answer-reviewers
 npx skills@latest add abr4xas/skills --skill decision-recap
+npx skills@latest add abr4xas/skills --skill fix-context-drift
 npx skills@latest add abr4xas/skills --skill pdf-to-markdown
 npx skills@latest add abr4xas/skills --skill resolve-stacked-conflicts
 ```
@@ -31,6 +32,7 @@ The installer writes them into your repo as ordinary files you own and can edit.
 |---|---|---|
 | [**`answer-reviewers`**](./answer-reviewers/) | Answer PR reviewers and resolve threads from the terminal | [`gh`](https://cli.github.com/) + `jq` |
 | [**`decision-recap`**](./decision-recap/) | Recap the decisions behind shipped work as a visual HTML page | `git` (+ [`gh`](https://cli.github.com/) for PRs) |
+| [**`fix-context-drift`**](./fix-context-drift/) | Find the claims in `AGENTS.md`, `CLAUDE.md` and skills that stopped being true | Node 24+ · `git` |
 | [**`pdf-to-markdown`**](./pdf-to-markdown/) | Debug a bad PDF conversion, then split it into chapters | Docker |
 | [**`resolve-stacked-conflicts`**](./resolve-stacked-conflicts/) | Get a stacked-PR chain mergeable again, edge by edge, in order | `git` (+ [`gh`](https://cli.github.com/) to derive the chain) |
 
@@ -127,9 +129,27 @@ python3 $D md book.pdf -o baseline.md
 
 **Setup.** Everything runs inside Docker, so nothing lands on your machine — no virtualenv, no pip. You need the daemon running and the image already local (`docker pull adeuxy/markitdown:latest`); `doctor` tells you where you stand.
 
+### #5: The context file quietly stopped being true
+
+<!-- driftwatch-ignore-next-line path/missing -->
+**The problem.** Your `AGENTS.md` says the entry point is `src/cli.ts`. Six months ago it was. Nothing failed, because nothing reads that file except the agent — and the agent doesn't notice either. It reads the claim, believes it, looks for a file that isn't there, and guesses. A stale context file doesn't break loudly like a test; it degrades every session quietly, and the better your instructions were, the more confidently they're wrong.
+
+**The fix** is [**`fix-context-drift`**](./fix-context-drift/), which runs [`driftwatch`](https://github.com/abr4xas/driftwatch) over every context document in the repo and then does the part a linter can't — decides what each stale claim means:
+
+```
+/fix-context-drift
+/fix-context-drift put it in CI
+```
+
+Four verdicts, and the first two look identical in the output. **Stale**: the document fell behind, correct it. **Repo regressed**: the document was *right* and the repo lost something, so fixing the prose would write the regression down as fact — it names the deleting commit and hands the call back to you. **Deliberate**: the path is a plan or a placeholder, ignored with the reason written beside it. **False positive**: driftwatch is wrong, worth reporting upstream.
+
+Then it reads the sentence rather than the fragment. Rewriting `src/util/date.ts → src/helpers/date.ts` is correct and still leaves "the date helpers live next to the CLI entry point" standing as a lie — and that paragraph is what the next agent reads.
+
+**Setup.** Node 24 or newer and a git working tree. `driftwatch` runs through `npx`, so there's nothing to install; no config, no API key, no network.
+
 ## The shape of a good skill
 
-If you're writing your own, the four here follow the same rules, and they're worth stealing:
+If you're writing your own, the five here follow the same rules, and they're worth stealing:
 
 - **One number for an interface.** `/resolve-stacked-conflicts 5827`. Everything else is derived fresh at runtime, so it can't go stale between runs.
 - **Write down the edges, not the happy path.** The happy path is what the agent already guesses. The gotchas — the two logins, the inverted `--ours`, the 100-thread cap with no warning — are the whole reason the document exists.
