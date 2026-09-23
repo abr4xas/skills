@@ -28,7 +28,7 @@ jobs:
       # The action defaults to --format github, so every stale claim lands as an
       # annotation on the line of the diff that makes it, and fails the job:
       # this repo is clean today, so a gate costs nothing and keeps it that way.
-      - uses: abr4xas/driftwatch@v0.3.0
+      - uses: abr4xas/driftwatch@v0.5.0
 
   skills:
     name: skill frontmatter
