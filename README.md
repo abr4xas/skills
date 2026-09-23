@@ -19,6 +19,7 @@ npx skills@latest add abr4xas/skills
 Or just the one you want:
 
 ```bash
+npx skills@latest add abr4xas/skills --skill alpinejs
 npx skills@latest add abr4xas/skills --skill answer-reviewers
 npx skills@latest add abr4xas/skills --skill decision-recap
 npx skills@latest add abr4xas/skills --skill fix-context-drift
@@ -30,6 +31,7 @@ The installer writes them into your repo as ordinary files you own and can edit.
 
 | Skill | What it does | Needs |
 |---|---|---|
+| [**`alpinejs`**](./alpinejs/) | Catch the Alpine.js code that looks right and silently does nothing | Nothing |
 | [**`answer-reviewers`**](./answer-reviewers/) | Answer PR reviewers and resolve threads from the terminal | [`gh`](https://cli.github.com/) + `jq` |
 | [**`decision-recap`**](./decision-recap/) | Recap the decisions behind shipped work as a visual HTML page | `git` (+ [`gh`](https://cli.github.com/) for PRs) |
 | [**`fix-context-drift`**](./fix-context-drift/) | Find the claims in `AGENTS.md`, `CLAUDE.md` and skills that stopped being true | Node 24+ · `git` |
@@ -147,9 +149,22 @@ Then it reads the sentence rather than the fragment. Rewriting `src/util/date.ts
 
 **Setup.** Node 24 or newer and a git working tree. `driftwatch` runs through `npx`, so there's nothing to install; no config, no API key, no network.
 
+### #6: The Alpine component looks right and does nothing
+
+**The problem.** An agent writes Alpine fluently, and that is the trouble: the code it produces reads as correct, and Alpine fails without a word. A second root element inside `<template x-for>` is dropped, no error. `x-transition` on an `x-if` does nothing. `x-init="init()"` runs `init()` twice. A plugin script placed after core leaves `x-collapse` as a dead attribute, and the console stays quiet. `x-model` on a number input hands back a string, so `total + qty` concatenates. Every one of these passes a read-through and ships.
+
+**The fix** is [**`alpinejs`**](./alpinejs/). It fires by itself whenever the agent touches Alpine, and holds the **traps**: the places where valid-looking Alpine does less than it says. Everything the agent writes or reviews gets checked against every trap, and a component is done when none of them applies.
+
+Behind the traps sits the full reference, loaded only when a task reaches it: every core directive with every modifier, the magics, the `Alpine.*` globals, all nine official plugins, extending Alpine, and the CSP build.
+
+> [!NOTE]
+> Some of what matters is in no documentation: the order directives run in on one element, the key `$persist` actually writes to, the `x-model` modifiers the parser accepts but the docs never list. Where the skill leans on behaviour like that, it says so in a **Note from source code** callout naming the file it was read from, at a pinned Alpine release. When Alpine moves on, you know exactly what to re-read.
+
+**Setup.** None. It is plain Markdown.
+
 ## The shape of a good skill
 
-If you're writing your own, the five here follow the same rules, and they're worth stealing:
+If you're writing your own, the six here follow the same rules, and they're worth stealing:
 
 - **One number for an interface.** `/resolve-stacked-conflicts 5827`. Everything else is derived fresh at runtime, so it can't go stale between runs.
 - **Write down the edges, not the happy path.** The happy path is what the agent already guesses. The gotchas — the two logins, the inverted `--ours`, the 100-thread cap with no warning — are the whole reason the document exists.
