@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/ai-skill-dark.png">
+  <img alt="ai-skill" src=".github/ai-skill-light.png" width="100%">
+</picture>
+
 # Skills for the work around the code
 
 [![skills.sh](https://skills.sh/b/abr4xas/skills)](https://skills.sh/abr4xas/skills)
