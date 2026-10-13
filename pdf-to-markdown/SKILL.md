@@ -142,8 +142,8 @@ If the baseline passes both, you are done. If not, find your symptom.
 
 ## Find your symptom
 
-Recipes 1–12 are in [`RECIPES.md`](RECIPES.md), 13–15 in
-[`SPLITTING.md`](SPLITTING.md). Read only the one you need.
+Recipes 1–12 are in [`references/RECIPES.md`](references/RECIPES.md), 13–15 in
+[`references/SPLITTING.md`](references/SPLITTING.md). Read only the one you need.
 
 | What you are seeing | Recipe |
 |---|---|
@@ -238,6 +238,6 @@ material.
   image count per page so you at least know they exist. Export them separately if
   you need them.
 
-When a command fails or Docker misbehaves, [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md)
+When a command fails or Docker misbehaves, [`references/TROUBLESHOOTING.md`](references/TROUBLESHOOTING.md)
 has the error messages, the container mechanics behind them, and where this was
 verified.

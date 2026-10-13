@@ -10,7 +10,7 @@ Every command runs inside Docker (`adeuxy/markitdown` by default, which already 
 npx skills add abr4xas/skills --skill pdf-to-markdown
 ```
 
-You also need Docker running and the image already local — the driver never pulls for you, on purpose (see [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)):
+You also need Docker running and the image already local — the driver never pulls for you, on purpose (see [TROUBLESHOOTING.md](./references/TROUBLESHOOTING.md)):
 
 ```bash
 docker pull adeuxy/markitdown:latest
@@ -39,7 +39,7 @@ You never copy the skill into a project. The container mounts it read-only at
 `/skill`, so run the driver by absolute path from whatever directory you want
 the output in.
 
-A conversion that reads plausibly is not a conversion that is correct — [SKILL.md](./SKILL.md) has the two checks that tell you which one you have: render a page and compare it, then ask what text is missing against the baseline. Note the second one is not a word count. `wc -w` counts the running headers and table-of-contents dots you dropped on purpose, so a complete book can read thousands of words short; `missing` names the phrases that are actually gone, and reading them is the check. If the baseline passes both, you're done. If not, find your symptom in [RECIPES.md](./RECIPES.md), each recipe starting from what the broken output looks like.
+A conversion that reads plausibly is not a conversion that is correct — [SKILL.md](./SKILL.md) has the two checks that tell you which one you have: render a page and compare it, then ask what text is missing against the baseline. Note the second one is not a word count. `wc -w` counts the running headers and table-of-contents dots you dropped on purpose, so a complete book can read thousands of words short; `missing` names the phrases that are actually gone, and reading them is the check. If the baseline passes both, you're done. If not, find your symptom in [RECIPES.md](./references/RECIPES.md), each recipe starting from what the broken output looks like.
 
 Run `python3 $D` with no arguments for the full command list. Every command prints the absolute path it wrote.
 
@@ -48,9 +48,9 @@ Run `python3 $D` with no arguments for the full command list. Every command prin
 | File | What it is |
 |---|---|
 | [`SKILL.md`](./SKILL.md) | The skill itself: what to run first, how to verify, the symptom index, the gotchas |
-| [`RECIPES.md`](./RECIPES.md) | Recipes 1–12 — extraction symptoms, each one diagnosis → fix |
-| [`SPLITTING.md`](./SPLITTING.md) | Recipes 13–15 — one file per chapter, link checking, regression diffs |
-| [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md) | Error messages, container mechanics, where this was verified |
+| [`references/RECIPES.md`](./references/RECIPES.md) | Recipes 1–12 — extraction symptoms, each one diagnosis → fix |
+| [`references/SPLITTING.md`](./references/SPLITTING.md) | Recipes 13–15 — one file per chapter, link checking, regression diffs |
+| [`references/TROUBLESHOOTING.md`](./references/TROUBLESHOOTING.md) | Error messages, container mechanics, where this was verified |
 | [`driver.py`](./driver.py) | The CLI — diagnosis (`info`, `fonts`, `columns`, `repeats`, `layout`, `page`, `where`), conversion (`md`, `run`), and post-processing (`split`, `check`, `diff`, `missing`, `templates`) |
 | [`templates/`](./templates/) | Working extractors that produced complete books — copy the closest one instead of starting from scratch |
 

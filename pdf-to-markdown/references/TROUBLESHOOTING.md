@@ -2,7 +2,7 @@
 
 Error messages, the container mechanics behind them, and the ground this was
 verified on. Reach for this when a command fails; the rules that apply to every
-run are the *Gotchas* in [`SKILL.md`](SKILL.md).
+run are the *Gotchas* in [`SKILL.md`](../SKILL.md).
 
 | Symptom | Cause / fix |
 |---|---|

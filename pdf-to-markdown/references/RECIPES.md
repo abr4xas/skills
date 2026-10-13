@@ -2,7 +2,7 @@
 
 Extraction symptoms. Recipes 13–15 (splitting, link checking, regression diffs)
 are in [`SPLITTING.md`](SPLITTING.md); the verification checks are in
-[`SKILL.md`](SKILL.md).
+[`SKILL.md`](../SKILL.md).
 
 Every command assumes the two variables `SKILL.md` sets up — the driver by
 absolute path, because the working directory is the document's, not the skill's:
@@ -369,7 +369,7 @@ anywhere. **Iterate on two or three pages**, not on the whole document.
 ## 11. Is the extraction correct and complete
 
 Promoted out of this file: the two checks are the *Verify* section of
-[`SKILL.md`](SKILL.md), because every conversion ends on them.
+[`SKILL.md`](../SKILL.md), because every conversion ends on them.
 
 ## 12. I need to find which page contains some text
 

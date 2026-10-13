@@ -82,7 +82,7 @@ Past a dozen cards the timeline stops being readable, so treat twelve as the poi
 
 Write a self-contained HTML file to the OS temp directory so nothing lands in the repo. Resolve the temp dir from `$TMPDIR`, falling back to `/tmp` (or `%TEMP%` on Windows), and write to `<tmpdir>/decision-recap-<slug>-<timestamp>.html`. Open it (`open` on macOS, `xdg-open` on Linux, `start` on Windows) and tell the user the absolute path.
 
-Tailwind and Mermaid from CDNs. Every fork gets a visual. See [HTML-REPORT.md](HTML-REPORT.md) for the scaffold, the diagram patterns, and the tone.
+Tailwind and Mermaid from CDNs. Every fork gets a visual. See [references/HTML-REPORT.md](references/HTML-REPORT.md) for the scaffold, the diagram patterns, and the tone.
 
 **Write the page in the user's language** — the one they have been speaking in this session, not the language of this skill. Headings, labels, badges, diagram text, prose: all of it, with the accents and diacritics that language requires. Set `<html lang>` to match. Five things stay exactly as they are, in any language: code identifiers, file paths and `file:line` evidence, branch and commit refs, the badge vocabulary (`Reversible`, `Sticky`, `One-way door`, `inferred`, `contradicts <document>` — a closed set of labels, which reads as a term of art rather than as prose), and quotes from the PR thread — a reviewer's words are evidence, and translating evidence falsifies it; gloss in brackets when the meaning needs it.
 

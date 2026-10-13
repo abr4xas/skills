@@ -159,4 +159,4 @@ Y. `PDFMD_TEMPLATES` is the half of that idea worth keeping.
 The *Verify* section of [`../SKILL.md`](../SKILL.md) is the authority: open the
 PNG and compare (it is the only ground truth), and count words against the
 markitdown baseline. Then `check` the split tree and `diff` after any change —
-recipes 14 and 15 in [`../SPLITTING.md`](../SPLITTING.md).
+recipes 14 and 15 in [`../references/SPLITTING.md`](../references/SPLITTING.md).
