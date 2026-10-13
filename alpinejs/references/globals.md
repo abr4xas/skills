@@ -75,6 +75,7 @@ Alpine.store('sidebarOpen', false)   // single-value store
 
 Outside Alpine: `Alpine.store('darkMode').toggle()`. A store is a plain reactive object, not a component: it has no `destroy()`, and no magics on `this`; react to its own changes with `Alpine.effect` inside `init()`.
 
+<!-- driftwatch-ignore-next-line path/missing -->
 > **Note from source code** (`alpinejs/src/store.js`): `init()` is called only when it is an own property of the value (`hasOwnProperty('init')`), so an `init` inherited from a class prototype never runs. Re-registering a name replaces the store and calls the new `init()`.
 
 ## Alpine.bind

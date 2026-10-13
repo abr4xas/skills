@@ -28,6 +28,7 @@ With a bundle, register everything and call `Alpine.plugin(...)` between the imp
 
 **Plugin scripts load before core.** Every `@alpinejs/*` script tag goes above the core tag, all with `defer`. Plugin directives and magics (`x-collapse`, `x-intersect`, `x-trap`, `x-mask`, `x-anchor`, `x-sort`, `x-resize`, `$persist`, `$focus`, `$money`) are inert attributes or `undefined` without their plugin.
 
+<!-- driftwatch-ignore-next-line path/missing -->
 > **Note from source code** (`alpinejs/src/lifecycle.js`, `warnAboutMissingPlugins`): on start, Alpine logs `found "[x-anchor]", but missing anchor plugin` for `x-anchor`, `x-sort`, `x-dialog` and `x-popover` only. Every other missing plugin fails silently, so check the script order before debugging the expression.
 
 **Directives need an `x-data`** on the element or an ancestor. Outside one, `@click`, `:class` and `x-show` do nothing; add a bare `x-data`. `x-init` is the only exception.
@@ -40,6 +41,7 @@ With a bundle, register everything and call `Alpine.plugin(...)` between the imp
 
 - **`x-for`, `x-if` and `x-teleport` go on a `<template>` with exactly one root element.** Wrap siblings in a single element.
 
+  <!-- driftwatch-ignore-next-line path/missing -->
   > **Note from source code** (`directives/x-if.js`, `x-for.js`, `x-teleport.js`): each clones `el.content.firstElementChild`. A second root element is dropped without an error; only a warning fires when the directive is not on a `<template>`.
 - **`:key` is a stable id from the data** (`item.id`), never the loop index when the list reorders, filters or has items removed.
 - **`x-transition` animates `x-show` only.** On `x-if` it does nothing; switch to `x-show`, or `x-collapse` for height.
@@ -47,6 +49,7 @@ With a bundle, register everything and call `Alpine.plugin(...)` between the imp
 - **`x-html` is for trusted strings only.** Anything user-supplied goes through `x-text`.
 - **Teleported content keeps its scope but not its DOM position.** Its events bubble from the target (`body`), not from the component, and `@click.outside` on the component treats clicks inside the teleported modal as outside. Listen on the `<template x-teleport>` itself, which receives forwarded copies of the content's events.
 
+  <!-- driftwatch-ignore-next-line path/missing -->
   > **Note from source code** (`utils/on.js`): `.outside` returns early only when `el.contains(e.target)` is true, the target is disconnected, the element has no size, or `el._x_isShown === false`. Nothing checks `_x_teleportBack`, so a click inside teleported content counts as outside the component that owns it.
 
 ## Data traps
@@ -57,23 +60,28 @@ With a bundle, register everything and call `Alpine.plugin(...)` between the imp
 - **Providers that use `this` while building their object must be `function`s.** `Alpine.data('x', function () { return { open: this.$persist(false) } })`; an arrow provider has no `this`.
 - **Stores are not components.** No magics on `this` and no `destroy()`; react to a store's own changes with `Alpine.effect` in its `init()`.
 
+  <!-- driftwatch-ignore-next-line path/missing -->
   > **Note from source code** (`alpinejs/src/store.js`): `Alpine.store()` wraps the value in `reactive()`, runs interceptors (which is why `$persist` works in a store) and calls an own `init()` once. It never calls `injectMagics` (which `x-data` does) and registers no cleanup, so `this.$watch` is `undefined` and `destroy()` is never called.
 - **`$refs` names are static and scoped to their component.** `:x-ref` does not evaluate: the ref is named by the literal string. A parent's `$refs` does not see refs under a nested `x-data`, and refs inside `x-if`/`x-for` templates exist only once rendered. In an `x-for`, a repeated ref name keeps the last element.
 
+  <!-- driftwatch-ignore-next-line path/missing -->
   > **Note from source code** (`directives.js`, `directives/x-ref.js`, `magics/$refs.js`): `x-ref` registers through an `inline` handler, which runs while Alpine walks the tree, while `x-data` (and so `init()`) is deferred until the walk ends. Static refs anywhere in the component are therefore already available in the parent's `init()`. Each ref is stored on `closestRoot(el)`, and `$refs` merges only the ref objects of the element's own ancestors.
 - **`$watch` is lazy and must not feed itself.** It skips the initial value (use `x-effect` to run up front), and mutating the watched object inside its own callback loops forever.
 - **`x-model` yields strings,** including from `type="number"` and `range`. Add `.number` or `.boolean`, or `total + qty` concatenates.
 
+  <!-- driftwatch-ignore-next-line path/missing -->
   > **Note from source code** (`directives/x-model.js`, `getInputValue`): the value is `event.target.value`, with no casting based on `el.type`. `.number` parses with `parseFloat`: an empty input gives `null`, and text that is not a number stays the raw string. So `.number` values still need a `null` check.
 - **`x-modelable` clones as JSON.** `File`, `Date`, `Map`, `Set` and class instances lose themselves crossing it; dispatch an `input` event instead.
 - **`$persist` keys collide, and storage beats code.** The default key is the property name, shared by every component on the origin; give each persisted value `.as('unique-key')`. Once a value is stored, changing its default in code does nothing for returning visitors; rename the key.
 
+  <!-- driftwatch-ignore-next-line path/missing -->
   > **Note from source code** (`persist/src/index.js`): the key is `alias || '_x_' + path`. A stored value is `JSON.parse`d and replaces the initial value. Setting the property to `undefined` removes the key. When `localStorage` throws (private mode, blocked storage), `$persist` falls back to an in-memory `Map` and logs a warning, so values silently stop surviving reloads.
 
 ## Event traps
 
 - **Key modifiers are kebab-cased `KeyboardEvent.key` names** (`.enter`, `.escape`, `.arrow-down`, `.page-down`, `.slash`). Numeric key codes (`@keyup.65`) do nothing in v3.
 
+  <!-- driftwatch-ignore-next-line path/missing -->
   > **Note from source code** (`utils/on.js`, `keyToModifiers`): a modifier matches when it equals the kebab-cased `e.key`, or one of these aliases: `ctrl`, `cmd`, `slash`, `space`, `spacebar`, `esc`, `up`, `down`, `left`, `right`, `period`, `comma`, `equal`, `minus`, `underscore`. A number never equals `e.key`, so `.65` never fires.
 - **Attribute event names are lowercase.** `@myEvent` listens for `myevent`. Dispatch kebab-case names, or listen with `.camel` (`@my-event.camel` hears `myEvent`); `.dot` maps `@my-event.dot` to `my.event`.
 - **`$dispatch` bubbles up, never sideways.** A sibling or separate component hears it only through `@name.window`.

@@ -86,6 +86,7 @@ For `x-for` the callback returns the expression string: `['x-for']() { return 'i
 
 Common names: `.shift` `.enter` `.space` `.ctrl` `.cmd` `.meta` (Cmd on Mac, Windows key on Windows) `.alt` `.up` `.down` `.left` `.right` `.escape` `.tab` `.caps-lock` `.equal` `.period` `.comma` `.slash`.
 
+<!-- driftwatch-ignore-next-line path/missing -->
 > **Note from source code** (`utils/on.js`): these aliases are also accepted but undocumented: `.esc`, `.spacebar`, `.minus`, `.underscore`, and `.super` (same as `.meta`). `.away` is an alias of `.outside`. Every `submit` listener first flushes pending `x-model.blur` updates on the form, so a submit handler sees the final values.
 
 **Mouse.** `.shift` `.ctrl` `.cmd` `.meta` `.alt` also filter `click`, `auxclick`, `contextmenu`, `dblclick` and the `mouse*` events: `@click.shift="addToSelection"`. Most browsers turn a ctrl-click into `contextmenu`.
@@ -120,6 +121,7 @@ Values are strings unless cast, including from `type="number"` and `range`.
 
 **Custom inputs.** `x-model` on any element listens for bubbling `input` events and reads `$event.detail`, so a child can set it with `$dispatch('input', value)`. `el._x_model.get()` and `el._x_model.set(value)` read and write the bound property programmatically.
 
+<!-- driftwatch-ignore-next-line path/missing -->
 > **Note from source code** (`directives/x-model.js`):
 > - **Undocumented modifiers.** `.trim` trims text values. `.unintrusive` skips updating the input from data while it has focus. `.parent` evaluates the expression in the parent element's scope.
 > - **Default events.** `<select>`, checkboxes and radios sync on `change`; everything else on `input`. Any `CustomEvent` with a `detail` sets the value from `detail`.
@@ -257,6 +259,7 @@ Alpine skips the element and everything inside it: third-party widgets, code sam
 
 The target is any `document.querySelector` selector; the content is appended there. It keeps the component's scope, `$refs` and `$root`, but native events bubble from its new DOM position. Listeners registered on the `<template x-teleport>` itself receive a forwarded copy of events from the teleported content. Nested teleported modals render as siblings in the target.
 
+<!-- driftwatch-ignore-next-line path/missing -->
 > **Note from source code** (`directives/x-teleport.js`): two undocumented modifiers change placement. `.prepend` inserts the content before the target element, `.append` after it; the default appends inside it. Only `firstElementChild` of the template is teleported. A selector that matches nothing logs `Cannot find x-teleport element for selector`.
 
 ## x-id

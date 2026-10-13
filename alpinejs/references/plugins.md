@@ -34,6 +34,7 @@ Alpine.start()
 
 Every other plugin follows the same two forms with its own package name. Pin the same version for plugins and core in production.
 
+<!-- driftwatch-ignore-next-line path/missing -->
 > **Note from source code** (`alpinejs/src/lifecycle.js`): only a missing Anchor or Sort plugin (and Alpine UI's `x-dialog`/`x-popover`) logs a warning at start. A missing Collapse, Focus, Intersect, Mask, Persist or Resize plugin produces no message; the attributes are simply ignored.
 
 ## Anchor
@@ -215,6 +216,7 @@ Alpine.morph(el, html, {
   ```
 - Outside components, including stores: `Alpine.$persist(true).as('darkMode_on')`.
 
+<!-- driftwatch-ignore-next-line path/missing -->
 > **Note from source code** (`persist/src/index.js`):
 > - The stored value wins over the initial value in code on every load, so a changed default only reaches new visitors.
 > - Assigning `undefined` removes the key instead of storing the string `"undefined"`.

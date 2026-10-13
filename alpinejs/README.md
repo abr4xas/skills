@@ -49,6 +49,7 @@ The reference covers every page of the official documentation as of Alpine v3.17
 
 Some behaviour appears nowhere in the docs. Examples: the order directives run in on an element, the key `$persist` really writes to, the `x-model` modifiers the parser accepts but the docs never mention (`.trim`, `.unintrusive`, `.parent`), and why static `$refs` are already available in `init()`. Where the skill relies on something like that, it says so in a callout:
 
+<!-- driftwatch-ignore-next-line path/missing -->
 > **Note from source code** (`alpinejs/src/store.js`): ...
 
 Each note names the file it was read from, at the v3.17.4 tag of [`alpinejs/alpine`](https://github.com/alpinejs/alpine). The two claims about other projects, Livewire bundling Alpine and Turbo matching permanent elements by `id`, are marked the same way and cite those repositories. If a future Alpine release changes one of them, the note tells you exactly which file to re-read.

@@ -16,6 +16,7 @@ Every `$` property Alpine core provides. In markup they are bare (`$refs.input`)
 
 Elements marked `x-ref` inside the component: `$refs.text.remove()`. Only statically written names register; `:x-ref="item.name"` inside `x-for` registers the literal string `item.name`. Static refs are available in `init()`. Refs rendered later by `x-if` or `x-for` appear once their template renders.
 
+<!-- driftwatch-ignore-next-line path/missing -->
 > **Note from source code** (`directives/x-ref.js`, `magics/$refs.js`): refs are stored on `closestRoot(el)`, the nearest `x-data`. `$refs` merges the ref objects of the element's ancestors. A nested component therefore sees its parents' refs, but a parent does not see refs under a nested `x-data`.
 
 ## $event
@@ -39,6 +40,7 @@ Lazy: the callback first runs on the first change, never on registration. Watchi
 
 Wraps `el.dispatchEvent(new CustomEvent(...))`:
 
+<!-- driftwatch-ignore-next-line path/missing -->
 > **Note from source code** (`utils/dispatch.js`): the defaults are `{ detail, bubbles: true, composed: true, cancelable: true }`, then `...options`. `composed: true` lets the event cross shadow DOM boundaries. The return value is `dispatchEvent`'s, which is `false` when a listener called `preventDefault()`.
 
 ```html

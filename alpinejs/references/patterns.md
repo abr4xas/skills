@@ -114,8 +114,10 @@ Alpine.data('remote', (url) => ({
   > **Note from Livewire's docs** (`livewire/livewire`, `docs/troubleshooting.md` and `docs/alpine.md`): a second copy of Alpine shows up as `Detected multiple instances of Alpine running` or `$wire is not defined`. Livewire's `package.json` bundles `alpinejs` and all nine official plugins. `$wire.entangle()` is kept only for backwards compatibility and discouraged, and the `@entangle` Blade directive is deprecated.
 - **HTML swaps** (htmx, Turbo, `fetch` + `innerHTML`): Alpine initialises nodes added to the DOM automatically. To swap HTML into a live component without losing its state, use `Alpine.morph` (Morph plugin). Turbo: an element that must survive a visit needs `data-turbo-permanent` and an `id`.
 
+  <!-- driftwatch-ignore-next-line path/missing -->
   > **Note from source code** (`alpinejs/src/lifecycle.js`, `mutation.js`): a `MutationObserver` collects added nodes and calls `initTree` on each one, skipping nodes contained in another added node.
 
+  <!-- driftwatch-ignore-next-line path/missing -->
   > **Note from source code** (`hotwired/turbo`, `src/core/snapshot.js`): permanent elements are found with `[id][data-turbo-permanent]` and matched across pages by `id`. Without an `id` the attribute is ignored, and the element and its Alpine state are replaced.
 - **Server data into a component:** pass it as arguments, `x-data="counter({{ $initial }})"`, encoded for an HTML attribute context (JSON, then attribute-escaped).
 - **Reusable partials** expose their value to the page through `x-modelable`, and get unique ids per instance through `x-id` / `$id`.
@@ -126,5 +128,6 @@ Alpine.data('remote', (url) => ({
 - **E2E (Playwright, Cypress):** target `data-test` attributes and wait for visibility rather than for time; transitions delay it.
 - **Inspect state** in the console: `Alpine.$data(document.querySelector('[x-data]'))`, with `window.Alpine = Alpine` set in bundle builds.
 
+  <!-- driftwatch-ignore-next-line path/missing -->
   > **Note from source code** (`alpinejs/src/alpine.js`): `Alpine.nextTick`, `Alpine.$data` (the merged scope of an element) and `Alpine.destroyTree(el)` are all exported on the global, which is what makes the test and console recipes above work.
 - **Trace a change:** `this.$watch('value', (now, before) => console.log(before, '→', now))` in `init()`, or `x-effect="console.log(count)"` on the element.

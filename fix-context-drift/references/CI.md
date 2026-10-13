@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: abr4xas/driftwatch@v0.3.0
+      - uses: abr4xas/driftwatch@v1.1.0
 ```
 
 The action defaults to `--format github`, so every stale claim becomes an annotation on the diff, on the line that makes it.
@@ -27,7 +27,7 @@ The action defaults to `--format github`, so every stale claim becomes an annota
 
 ```yaml
 # Advisory: annotate the diff, never block the merge
-- uses: abr4xas/driftwatch@v0.3.0
+- uses: abr4xas/driftwatch@v1.1.0
   with:
     fail-on-drift: false
 ```
@@ -62,7 +62,7 @@ permissions:
 steps:
   - uses: actions/checkout@v7
 
-  - uses: abr4xas/driftwatch@v0.3.0
+  - uses: abr4xas/driftwatch@v1.1.0
     id: drift
     with:
       sarif: true

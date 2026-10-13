@@ -59,6 +59,7 @@ Alpine.directive('foo', el => {
 }).before('bind')
 ```
 
+<!-- driftwatch-ignore-next-line path/missing -->
 > **Note from source code** (`alpinejs/src/directives.js`): the directives on one element run in this order: `ignore`, `ref`, `id`, `data`, `anchor`, `bind`, `init`, `for`, `model`, `modelable`, `transition`, `show`, `if`, then every custom directive, then `teleport`. `.before()` with an unknown name logs a warning and keeps the default order. A handler can also define an `inline` function. It runs immediately while Alpine walks the tree, before any deferred handler, which is how `x-ref` is registered before `x-data`'s `init()`.
 
 ## Alpine.magic
