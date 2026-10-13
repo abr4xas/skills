@@ -11,6 +11,10 @@
 #   metadata      (optional) map of string -> string
 #   allowed-tools (optional) space-separated STRING (not a YAML list)
 #
+# Outside the spec, one field is accepted on purpose:
+#   disable-model-invocation  Claude Code reads it only at the top level, to keep
+#                             a skill manual-only; under metadata it is ignored
+#
 # Also enforced, from the same spec:
 #   - SKILL.md must start with YAML frontmatter
 #   - no duplicate top-level keys (YAML forbids them; a parser may take either one)
@@ -31,8 +35,9 @@ ISSUES=0
 WARNINGS=0
 PASSED=0
 
-# Fields the spec allows at the top level of the frontmatter.
-ALLOWED_FIELDS="name description license compatibility metadata allowed-tools"
+# Fields the spec allows at the top level of the frontmatter, plus the one
+# Claude Code extension documented above.
+ALLOWED_FIELDS="name description license compatibility metadata allowed-tools disable-model-invocation"
 
 echo "🔍 Auditing Skills Against Agent Skills Specification"
 echo "======================================================"
