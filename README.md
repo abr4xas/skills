@@ -89,7 +89,10 @@ It rebuilds the chain from each PR's base branch, finds the first edge that's ac
 
 It comes back to you for the two calls that are genuinely yours: which child to follow when the stack forks, and any conflict that's really a product decision.
 
-**Setup.** `git` and `bash`; rebuilding the chain uses [`gh`](https://cli.github.com/). Everything else is plain git, so it works in any language — the syntax check and formatter are read off your repo, not guessed by the skill.
+> [!TIP]
+> GitHub ships its own agent skill for native stacks (`gh skill install github/gh-stack`). Install both: GitHub's drives the `gh stack` commands, and when a rebase stops on a conflict it says to resolve the files and continue. This one is how to resolve them without losing either side.
+
+**Setup.** `git` and `bash`; rebuilding the chain uses [`gh`](https://cli.github.com/). GitHub's native stacks also need the [`gh stack`](https://github.com/github/gh-stack) extension (`gh extension install github/gh-stack`). Everything else is plain git, so it works in any language — the syntax check and formatter are read off your repo, not guessed by the skill.
 
 ### #3: Nobody remembers why
 

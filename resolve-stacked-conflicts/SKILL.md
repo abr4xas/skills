@@ -23,7 +23,18 @@ meaning opposite things — see *In a rebase, `--ours` is not yours*:
   child's commits. GitHub's native stacks work this way, and when the bottom PR
   merges the server rebases the rest and re-targets them at the trunk on its
   own, so leave that cascade to it. Native stacks live in one repo, never
-  across forks.
+  across forks, and are always a single chain, never a tree.
+
+GitHub says which one it is: a PR in a native stack carries a `stack` object,
+and every other PR carries `null`.
+
+```bash
+gh api repos/{owner}/{repo}/pulls/5827 --jq .stack
+```
+
+A native stack is a rebase stack. A plain chain of PRs whose bases happen to
+line up is whichever the team has been doing; `git log --merges` on a child
+tells you.
 
 Everything below applies to both, and `sides` names which one is in flight.
 
@@ -71,12 +82,51 @@ it starts from the branch you are on.
 When one branch has two PRs stacked on it the stack is a tree, not a chain:
 `chain` lists the children, writes nothing and exits non-zero. That is a
 question for the user — show them the children and ask which one to follow.
+A native stack can never be a tree, so a tree is always a manual chain.
 
-This and `verify` are the two commands that need `gh`. On a native stack,
-`gh stack view` (`gh extension install github/gh-stack`) is the authority and
-`chain` reconstructs the same thing from the base branches — use whichever
-answers. With no `gh` at all, ask the user for the branch names, write them
-into `stack.txt` yourself, and continue.
+This and `verify` are the two commands that need `gh`. With no `gh` at all, ask
+the user for the branch names, write them into `stack.txt` yourself, and
+continue.
+
+### A native stack needs the `gh stack` extension
+
+GitHub's own tooling for native stacks is a GitHub CLI extension, and the
+cascade in step 2 runs through it. Check before you rely on it:
+
+```bash
+gh extension list | grep gh-stack
+```
+
+When it is missing, **ask the user to install it**; installing is their call:
+
+```bash
+gh extension install github/gh-stack    # needs gh 2.90+ and Git 2.36+
+```
+
+Without it, the only cascade a native stack has is GitHub's **Rebase stack**
+button, which works when nothing conflicts and cannot stop for you to resolve
+anything.
+
+GitHub publishes an agent skill for the extension
+(`gh skill install github/gh-stack`), and it is the authority on `gh stack`
+itself: building and restructuring a stack, `sync` and divergence, worktrees,
+every exit code. This skill uses only the commands its cascade needs and owns
+the part that one leaves out, which is how to resolve a conflict and prove the
+resolution kept both sides. When `gh stack` does something this file does not
+describe, defer to that skill, or to `gh stack <command> --help`.
+
+The extension only acts on a stack it tracks locally, and a stack created on
+the website or by someone else is not tracked yet: `gh stack` exits `2`, *not
+in a stack*. Pull it down by any PR in it, then read it back:
+
+```bash
+gh stack checkout 5827          # fetches the branches and tracks the stack
+gh stack view --json            # the authority on a native stack
+```
+
+`view` without `--json` or `--short` opens a full-screen interface. `chain`
+reconstructs the same order from the base branches; when the two disagree,
+`gh stack view` is right.
 
 ## 1. Preflight — see the whole stack before touching anything
 
@@ -124,14 +174,23 @@ git diff --name-only --diff-filter=U
 ```
 
 On a **rebase** stack, `gh stack rebase` replays the whole chain instead and
-stops at the first conflict, printing the conflicted files. Steps 3–5 are the
-same from there; you finish with `gh stack rebase --continue` rather than a
-commit.
+stops at the first conflict, printing the conflicted files with line numbers
+and exiting `3`. Steps 3–5 are the same from there; you finish with `git add`
+and `gh stack rebase --continue` rather than a commit, and
+`gh stack rebase --abort` puts every branch back as it was.
+
+It fetches `origin` first and rebases from the trunk upward. `--upstack`
+limits it to the current branch and everything above it, which is the cascade
+after a fix to a lower layer; `--downstack` covers the trunk up to the current
+branch. A parent that was already merged is handled for you: the rebase
+switches to `--onto` so the merged commits are not replayed.
 
 **When preflight found no `✗` line, the cascade is the entire job.** Run it end
 to end — `gh stack rebase` on a rebase stack, or `git merge <parent>` down each
 edge in order — then go to `## Done`. Steps 3–5 audit a resolution, and there
-is no resolution here to audit.
+is no resolution here to audit. On a native stack with no conflict, GitHub's
+**Rebase stack** button does the same cascade on the server; see *A server-side
+rebase may not be signed* before using it.
 
 ## 3. Attribute each conflict before resolving it
 
@@ -208,6 +267,11 @@ One edge moved is one edge, not the job: moving it rewrites the child, which is
 exactly what makes the next edge conflict. Go back to step 1, work the new first
 non-linear edge, and loop until `preflight` comes back green.
 
+Then push, because GitHub only sees what reached the remote: `gh stack push` on
+a rebase stack, or `git push` for each branch you merged into. `gh stack push`
+uses `--force-with-lease` per branch and is not atomic, so a rejected branch
+leaves the others updated: fix that one and run it again.
+
 Then **close against GitHub, not against the working copy**:
 
 ```bash
@@ -221,8 +285,22 @@ at. Green preflight plus red verify means the trunk moved while you worked.
 
 **The stack is done when `verify` is green.** Then report the edges you moved and
 what you ported across each one. Whatever still blocks the merge after that is
-review, not the stack — say which, so nobody re-runs this skill on a PR that is
-only waiting for an approval.
+not the stack's history — say which, so nobody re-runs this skill on a PR that
+is only waiting for an approval. On a native stack, these block a linear stack:
+
+- **A PR below it.** A PR merges only when every PR below it has its required
+  reviews and passing checks, all judged against the stack's base, not the
+  branch each one targets.
+- **A closed PR mid-stack.** It blocks every PR above it until the stack is
+  restructured: **Unstack** on the website, or `gh stack modify`. That is the
+  user's decision.
+- **The merge queue.** Ejecting one PR ejects every PR above it; re-queue once
+  the cause is fixed.
+- **Auto-merge.** Stacks do not support it, so nothing merges on its own when
+  the checks go green.
+
+A merge that fails partway leaves the PRs below it merged and the failed one
+and those above it open. Fix the failed one and merge again.
 
 ## Gotchas
 
@@ -256,6 +334,29 @@ That is why the check in step 4 runs over every touched file rather than the
 conflicted ones. Duplicate imports are the common shape, but the class is
 wider: any two edits that auto-merge into something the language rejects, or
 accepts and misreads.
+
+**`gh stack` turns on `rerere`, and rerere replays old resolutions.**
+`gh stack init` enables `git rerere`, so a conflict resolved once is resolved
+the same way the next time it appears, without stopping. That is the point
+across a long cascade, and the trap when the first resolution was wrong: it
+comes back silently on every later rebase. Step 4 still covers it, since a
+replayed resolution is in the touched list. To drop one:
+`git rerere forget <path>` while the conflict is in progress.
+
+**A server-side rebase may not be signed.** GitHub's docs disagree with
+themselves here: the managing guide says commits from the **Rebase stack**
+button are not signed, the reference says they are. When the repo requires
+signed commits, cascade with `gh stack rebase` and `gh stack push`, which sign
+with the local Git configuration. Either way, a rebase that leaves a PR's diff
+unchanged keeps its approvals, even with *dismiss stale approvals* on.
+
+**A squash-merged parent replays as conflicts against itself on a merge-down
+chain.** Once a parent lands as one squash commit, its original commits are
+still in the child, and merging the trunk in replays them against their own
+squashed copy. (`gh stack rebase` handles this on a native stack.) Rebase the
+child onto the trunk past the old parent tip instead of merging —
+`git rebase --onto <trunk> <old-parent-tip> <child>` — and tell the user the
+edge changed from merge to rebase.
 
 **A project-wide format is unusable mid-merge.** A merge marks every file it
 modified as dirty. In one measured round: 47 dirty files against 3 actually
@@ -312,17 +413,6 @@ path in its own variable: `p=app/Foo.php; git cat-file -p "$TREE:$p"`.
 
 ## Troubleshooting
 
-| Symptom | Fix |
-|---|---|
-| `error: unknown ref: <branch>` | Branch is remote-only and not fetched. `git fetch origin <branch>` |
-| `warn: local … != origin/… — using origin` | Local branch is stale. `git pull` it, or ignore — preflight already used origin |
-| `no merge or rebase in progress` from `sides` | It reads `HEAD` vs `MERGE_HEAD`/`REBASE_HEAD`. Run it while the operation is paused, before finishing it |
-| A rebase resolution "worked" but your change is gone | You took `--ours`, which in a rebase is the other branch. Redo the commit with `--theirs` |
-| `touched` prints nothing after committing | It falls back to `HEAD^ HEAD`. Run it on the merge commit, or pass the branch pair to `edge` |
-| Audit clean, PR still shows conflicts | You resolved a downstream edge first. Restart from the topmost non-linear edge |
-| GitHub shows *out of date* / **Rebase stack**, preflight found no conflicts | The edge is `behind`, not conflicted. Cascade it — step 2 |
-| `preflight` green but GitHub still says *out of date* | The trunk moved after your last cascade. `verify` catches this; cascade again |
-| `verify` says `behind` on a PR you did not branch | It is probably from a fork, whose head is not in your repo. `git fetch origin pull/<n>/head`, then re-run |
-| `gh stack rebase` left the stack half-rebased | `gh stack rebase --abort` restores every branch to its pre-rebase state |
-| Bottom PR merged; local branches now stale | `gh stack sync --prune` — fetches, rebases, pushes, and drops merged branches |
-| Parse error on `<<` or `<<<<<<<` | A conflict marker is still in the file — `markers` lists which |
+When a driver command, git or `gh stack` prints an error or exits non-zero,
+look up the symptom in [`references/TROUBLESHOOTING.md`](references/TROUBLESHOOTING.md)
+before improvising a fix.

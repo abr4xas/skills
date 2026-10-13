@@ -45,6 +45,34 @@ taking the wrong one drops your work without leaving a trace.
 [`gh`](https://cli.github.com/); without it the agent falls back to a list of
 branches you name.
 
+For GitHub's native stacks, the cascading rebase runs through the
+[`gh stack`](https://github.com/github/gh-stack) extension. The agent checks for
+it and asks you to install it rather than installing it itself:
+
+```bash
+gh extension install github/gh-stack
+```
+
+Without it, a native stack can still be cascaded with GitHub's **Rebase stack**
+button, as long as nothing conflicts.
+
+## Alongside GitHub's `gh-stack` skill
+
+GitHub publishes an official agent skill for the extension:
+
+```bash
+gh skill install github/gh-stack
+```
+
+Use both. GitHub's skill drives `gh stack` itself: designing a stack, creating
+and restructuring it, syncing it, every exit code. When a rebase stops on a
+conflict, it tells the agent to resolve the files and continue, and stops
+there. This skill is that missing part: which side `--ours` really is, porting a
+small change into a refactor, auditing every file the merge touched, and closing
+against what GitHub sees. It also covers the stacks GitHub's skill does not:
+chains cascaded by merging, trees, PRs from forks, and repositories without
+native stacks.
+
 The driver underneath is plain git, so it works on any repo in any language.
 What "still valid" means for your project — the syntax check, the type check,
 the formatter — stays where it belongs: the agent reads it off your repo instead
