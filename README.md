@@ -26,6 +26,7 @@ Or just the one you want:
 ```bash
 npx skills@latest add abr4xas/skills --skill alpinejs
 npx skills@latest add abr4xas/skills --skill answer-reviewers
+npx skills@latest add abr4xas/skills --skill capture-search-demand
 npx skills@latest add abr4xas/skills --skill decision-recap
 npx skills@latest add abr4xas/skills --skill fix-context-drift
 npx skills@latest add abr4xas/skills --skill pdf-to-markdown
@@ -38,6 +39,7 @@ The installer writes them into your repo as ordinary files you own and can edit.
 |---|---|---|
 | [**`alpinejs`**](./alpinejs/) | Catch the Alpine.js code that looks right and silently does nothing | Nothing |
 | [**`answer-reviewers`**](./answer-reviewers/) | Answer PR reviewers and resolve threads from the terminal | [`gh`](https://cli.github.com/) + `jq` |
+| [**`capture-search-demand`**](./capture-search-demand/) | Plan the search pages that catch demand people already have for your product | Nothing |
 | [**`decision-recap`**](./decision-recap/) | Recap the decisions behind shipped work as a visual HTML page | `git` (+ [`gh`](https://cli.github.com/) for PRs) |
 | [**`fix-context-drift`**](./fix-context-drift/) | Find the claims in `AGENTS.md`, `CLAUDE.md` and skills that stopped being true | Node 24+ · `git` |
 | [**`pdf-to-markdown`**](./pdf-to-markdown/) | Debug a bad PDF conversion, then split it into chapters | Docker |
