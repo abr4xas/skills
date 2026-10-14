@@ -39,7 +39,7 @@ The installer writes them into your repo as ordinary files you own and can edit.
 |---|---|---|
 | [**`alpinejs`**](./alpinejs/) | Catch the Alpine.js code that looks right and silently does nothing | Nothing |
 | [**`answer-reviewers`**](./answer-reviewers/) | Answer PR reviewers and resolve threads from the terminal | [`gh`](https://cli.github.com/) + `jq` |
-| [**`capture-search-demand`**](./capture-search-demand/) | Plan the search pages that catch demand people already have for your product | Nothing |
+| [**`capture-search-demand`**](./capture-search-demand/) | Plan the search pages that catch demand people already have for your business | Nothing |
 | [**`decision-recap`**](./decision-recap/) | Recap the decisions behind shipped work as a visual HTML page | `git` (+ [`gh`](https://cli.github.com/) for PRs) |
 | [**`fix-context-drift`**](./fix-context-drift/) | Find the claims in `AGENTS.md`, `CLAUDE.md` and skills that stopped being true | Node 24+ · `git` |
 | [**`pdf-to-markdown`**](./pdf-to-markdown/) | Debug a bad PDF conversion, then split it into chapters | Docker |
