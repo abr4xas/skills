@@ -30,6 +30,7 @@ npx skills@latest add abr4xas/skills --skill capture-search-demand
 npx skills@latest add abr4xas/skills --skill decision-recap
 npx skills@latest add abr4xas/skills --skill fix-context-drift
 npx skills@latest add abr4xas/skills --skill pdf-to-markdown
+npx skills@latest add abr4xas/skills --skill refactoring-ui
 npx skills@latest add abr4xas/skills --skill resolve-stacked-conflicts
 ```
 
@@ -43,6 +44,7 @@ The installer writes them into your repo as ordinary files you own and can edit.
 | [**`decision-recap`**](./decision-recap/) | Recap the decisions behind shipped work as a visual HTML page | `git` (+ [`gh`](https://cli.github.com/) for PRs) |
 | [**`fix-context-drift`**](./fix-context-drift/) | Find the claims in `AGENTS.md`, `CLAUDE.md` and skills that stopped being true | Node 24+ · `git` |
 | [**`pdf-to-markdown`**](./pdf-to-markdown/) | Debug a bad PDF conversion, then split it into chapters | Docker |
+| [**`refactoring-ui`**](./refactoring-ui/) | Rank every element and pick every value from a named set, in Tailwind v4 | Nothing |
 | [**`resolve-stacked-conflicts`**](./resolve-stacked-conflicts/) | Get a stacked-PR chain mergeable again, edge by edge, in order | `git` (+ [`gh`](https://cli.github.com/) to derive the chain) |
 
 ## Why these exist
